@@ -1,0 +1,64 @@
+# Local stack: Postgres, a one-shot migration, the API and the worker.
+# Start with `task up` from the repository root.
+# Prometheus and Grafana join in M7 (SYSTEM_DESIGN §14).
+
+name: fuxi
+
+x-app: &app
+  build:
+    context: ..
+    dockerfile: deploy/Dockerfile
+  image: fuxi:dev
+  environment:
+    FUXI_DATABASE_URL: postgres://fuxi:fuxi@postgres:5432/fuxi?sslmode=disable
+    FUXI_LOG_LEVEL: ${FUXI_LOG_LEVEL:-info}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: fuxi
+      POSTGRES_PASSWORD: fuxi # local development only
+      POSTGRES_DB: fuxi
+    ports:
+      # Host port 5433, so it doesn't clash with a locally installed Postgres on 5432.
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fuxi -d fuxi"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    <<: *app
+    command: ["migrate", "up"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    command: ["api"]
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "/fuxi", "healthcheck"]
+      interval: 2s
+      timeout: 4s
+      retries: 15
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    command: ["worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:

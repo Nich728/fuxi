@@ -1,0 +1,90 @@
+# Developer commands. Install Task from https://taskfile.dev, then run `task --list`.
+# Task replaces make so the same commands work on Windows, macOS and Linux (ADR-0017).
+version: "3"
+
+vars:
+  COMPOSE: docker compose -f deploy/docker-compose.yml
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+
+env:
+  # The Compose Postgres is published on 5433 (see deploy/docker-compose.yml).
+  FUXI_DATABASE_URL: postgres://fuxi:fuxi@localhost:5433/fuxi?sslmode=disable
+
+tasks:
+  default:
+    cmds: [task --list]
+    silent: true
+
+  up:
+    desc: Build and start Postgres, migrations, API and worker; wait until the API is ready
+    cmds:
+      - "{{.COMPOSE}} up -d --build --wait api worker"
+      - task: health
+
+  down:
+    desc: Stop the local stack (keeps the database volume)
+    cmds: ["{{.COMPOSE}} down"]
+
+  reset:
+    desc: Stop the stack and delete the local database volume
+    prompt: This deletes all local database data. Continue?
+    cmds: ["{{.COMPOSE}} down -v"]
+
+  logs:
+    desc: Follow logs from the local stack
+    cmds: ["{{.COMPOSE}} logs -f"]
+
+  db:
+    desc: Start only Postgres (for running the API from your editor)
+    cmds: ["{{.COMPOSE}} up -d --wait postgres"]
+
+  health:
+    desc: Call /healthz and /readyz on the local API
+    cmds:
+      - curl -fsS http://localhost:8080/healthz
+      - curl -fsS http://localhost:8080/readyz
+
+  build:
+    desc: Build the fuxi binary into bin/
+    cmds:
+      - go build -trimpath -ldflags "-X main.version={{.VERSION}}" -o bin/fuxi{{exeExt}} ./cmd/fuxi
+
+  run:api:
+    desc: Run the API on the host against the Compose Postgres
+    deps: [db]
+    cmds: [go run ./cmd/fuxi api]
+
+  migrate:
+    desc: "Run a migration command on the host, e.g. task migrate -- status"
+    deps: [db]
+    cmds: ["go run ./cmd/fuxi migrate {{.CLI_ARGS | default \"up\"}}"]
+
+  migrate:new:
+    desc: "Create a new SQL migration, e.g. task migrate:new -- create_users"
+    requires:
+      vars: [CLI_ARGS]
+    cmds:
+      - go run github.com/pressly/goose/v3/cmd/goose@v3.30.0 -dir db/migrations -s create {{.CLI_ARGS}} sql
+
+  test:
+    desc: Run all tests, including integration tests (needs Docker)
+    cmds:
+      # -race needs a 64-bit C compiler, which Windows lacks by default; CI (Linux) always runs it.
+      - go test {{if ne OS "windows"}}-race {{end}}-count=1 ./...
+
+  test:short:
+    desc: Run unit tests only (no Docker)
+    cmds: [go test -short ./...]
+
+  lint:
+    desc: Run go vet and golangci-lint
+    cmds:
+      - go vet ./...
+      - go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0 run
+
+  tidy:
+    desc: Tidy go.mod and format code
+    cmds:
+      - go mod tidy
+      - gofmt -s -w .

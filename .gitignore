@@ -1,0 +1,27 @@
+# Build output
+/bin/
+*.exe
+*.test
+*.out
+coverage.*
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Downloaded archives (the design-skills bundle is already extracted into the repo)
+*.zip
+
+# Client (from M3)
+web/node_modules/
+web/dist/
+
+# Claude Code local settings
+.claude/settings.local.json
