@@ -170,9 +170,10 @@ CREATE TABLE dict_entries (
     pinyin_marked    text NOT NULL,                 -- 'cídiǎn'
     pinyin_toneless  text NOT NULL,                 -- 'cidian'
     definitions      text[] NOT NULL,
+    secondary        boolean NOT NULL DEFAULT false, -- name or pointer entry ("variant of …"); ranks lower (§10)
     hsk_level        smallint,
     frequency_rank   integer,
-    search_en        tsvector GENERATED ALWAYS AS
+    search_en        tsvector GENERATED ALWAYS AS   -- via an IMMUTABLE wrapper: array_to_string is only STABLE
                        (to_tsvector('english', array_to_string(definitions, ' '))) STORED,
     UNIQUE (source, source_key)
 );
@@ -448,13 +449,13 @@ CREATE INDEX jobs_ready_idx ON jobs (run_at) WHERE status = 'queued';
 
 ## 5. Content pipeline
 
-Sources: **CC-CEDICT** (CC BY-SA), **Tatoeba** (CC BY 2.0 FR), **HSK 3.0 word lists, 2026 revision** (check the repository's license; fall back to the 2021 list if needed). All are downloaded snapshots; nothing is scraped.
+Sources: **CC-CEDICT** (CC BY-SA), **Tatoeba** (CC BY 2.0 FR), **HSK 3.0 examination syllabus word list** (published November 2025, in force for exams from 2026): `corpus/syllabus2025/syllabus2025_words.tsv` from [harukicoder/hsk30](https://github.com/harukicoder/hsk30), MIT, pinned to a commit in `Taskfile.yml`. It is extracted from the official PDF and validated against the syllabus's own entry counts. Note that the 2021 grading standard (GF 0025-2021), which most open "HSK 3.0" lists encode, places about 40% of shared words at a different level; Fuxi uses the exam syllabus. All are downloaded snapshots; nothing is scraped. `task data:download` fetches them and `task data:import` loads them (`fuxi import cedict|hsk|tatoeba`, in that order).
 
 1. **Pin.** The importer computes the file's SHA-256. If `import_runs` already has it, stop.
 2. **Parse.** CC-CEDICT line → traditional, simplified, numbered pinyin, definitions. Convert to tone marks (`chuan2` → `chuán`, `lu:4` → `lǜ`) and toneless (`chuan`) forms.
 3. **Stage and upsert.** `COPY` into an unlogged staging table, then `INSERT … ON CONFLICT (source, source_key) DO UPDATE` in one transaction.
-4. **Link sentences.** Segment each Tatoeba sentence by greedy longest match against the dictionary. Fill `sentence_words`, and compute `max_hsk`.
-5. **Tag levels.** Apply the HSK 3.0 lists to set `hsk_level` (1–6, or 7 for the combined 7–9 band). Words on no list keep `hsk_level = NULL` and are never used in the vocabulary check.
+4. **Link sentences.** Segment each Tatoeba sentence by greedy longest match against the dictionary (simplified and traditional forms, since Tatoeba has both). When a headword has several entries, an ordinary entry beats a name or pointer entry, then the lowest HSK level wins. Fill `sentence_words`, and compute `max_hsk` (names and pointer entries are ignored; a word on no HSK list makes it `NULL`). Until a word-frequency list is chosen, `frequency_rank` is the number of sentences using the entry, ranked. Linking reruns after both the HSK and Tatoeba imports.
+5. **Tag levels.** Apply the HSK 3.0 syllabus to set `hsk_level` (1–6, or 7 for the combined 7–9 band). Each listed reading tags ordinary entries with the same tone-marked pinyin (吗 *ma*, not *má*); failing that, the same toneless pinyin (the syllabus writes tone sandhi: 一下 *yíxià*); failing that, every entry for the word. A reading listed twice keeps the lowest level. Words on no list keep `hsk_level = NULL` and are never used in the vocabulary check. With the pinned list, 10,894 of 10,896 syllabus words match a CC-CEDICT entry.
 
 User data only references `dict_entries.id`, and `source_key` is stable, so re-imports never orphan notes.
 
@@ -953,7 +954,7 @@ Template: `docs/adr/0000-template.md` with the sections Context, Decision, Alter
 ## 16. Open technical questions
 1. Can go-fsrs's current version produce deterministic output with fuzz on, or must fuzz be disabled?
 2. Should the FSRS optimiser run in Go, as a Python sidecar script, or through a WASM build?
-3. Which repository has a clearly licensed HSK 3.0 word list (2026 revision, or the 2021 list as a fallback)?
+3. ~~Which repository has a clearly licensed HSK 3.0 word list?~~ Decided: the 2025 examination syllabus list from harukicoder/hsk30 (MIT), see §5. Fallback if it is withdrawn: bezlant/hsk-3-vocabulary (same syllabus, CC BY-SA 4.0).
 4. Should conversation history be summarised after N turns to control token cost?
 5. ~~HSK 2.0 or HSK 3.0?~~ Decided: HSK 3.0 (ADR-0016). The design stays band-agnostic, so a future revision only changes `band_scheme`, band sizes and the start-band mapping.
 6. How many hand-reviewed pseudo-words are needed per band to keep the false-alarm estimate stable? The simulation in §9.9 can answer this.

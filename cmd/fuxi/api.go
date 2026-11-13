@@ -10,7 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/Nich728/fuxi/internal/dictionary"
 	"github.com/Nich728/fuxi/internal/platform/config"
 	"github.com/Nich728/fuxi/internal/platform/db"
 	"github.com/Nich728/fuxi/internal/platform/httpx"
@@ -50,7 +52,9 @@ func runAPI(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-func newRouter(pool httpx.Pinger, log *slog.Logger) http.Handler {
+func newRouter(pool *pgxpool.Pool, log *slog.Logger) http.Handler {
+	dict := dictionary.NewHandler(dictionary.NewService(pool), log.With("module", "dictionary"))
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	// No RealIP: it trusts client-supplied X-Forwarded-For. Add a proxy-aware
@@ -62,7 +66,9 @@ func newRouter(pool httpx.Pinger, log *slog.Logger) http.Handler {
 	r.Get("/readyz", httpx.Readyz(pool))
 
 	r.Route("/v1", func(r chi.Router) {
-		// Module routes are mounted here from M1 onwards (SYSTEM_DESIGN §10).
+		// Module routes (SYSTEM_DESIGN §10). Dictionary content is shared and
+		// public; user-owned routes arrive with auth in M2.
+		dict.Routes(r)
 	})
 	return r
 }

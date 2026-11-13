@@ -1,3 +1,6 @@
+# Downloaded datasets (task data:download)
+/.data/
+
 # Build output
 /bin/
 *.exe

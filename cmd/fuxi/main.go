@@ -5,6 +5,7 @@
 //	fuxi migrate up       apply pending migrations (release step)
 //	fuxi migrate down     roll back the latest migration
 //	fuxi migrate status   list migrations
+//	fuxi import ...       load CC-CEDICT, the HSK list or Tatoeba (§5)
 //	fuxi healthcheck      exit 0 if the local API is ready (Docker probe)
 //	fuxi version          print the build version
 package main
@@ -31,6 +32,7 @@ commands:
   api                 run the HTTP API
   worker              run the background job worker
   migrate up|down|status
+  import cedict|hsk|tatoeba <files>   load open datasets
   healthcheck         exit 0 if the local API is ready (for Docker)
   version             print the version
 `
@@ -87,6 +89,8 @@ func run(args []string) error {
 		return runAPI(ctx, cfg, log.With("mode", "api"))
 	case "worker":
 		return runWorker(ctx, cfg, log.With("mode", "worker"))
+	case "import":
+		return runImport(ctx, cfg, log.With("mode", "import"), args[1:])
 	case "migrate":
 		sub := "up"
 		if len(args) > 1 {
