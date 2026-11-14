@@ -13,7 +13,7 @@ Fuxi is also a backend portfolio project: a deterministic scheduling engine, an 
 | Milestone | | |
 |---|---|---|
 | M0 Foundations | ✅ | Binary modes, Compose, migrations, CI |
-| M1 Content & search | ⏳ next | CC-CEDICT, Tatoeba, HSK 3.0 importers; search API |
+| M1 Content & search | ✅ | CC-CEDICT, Tatoeba, HSK 3.0 importers; search API |
 | M2 Study core | | Auth, decks, notes, cards, FSRS reviews |
 | M3 Daily-usable client | | Installable PWA |
 | M4 Vocabulary check + AI tutor | | |
@@ -40,6 +40,23 @@ task up        # build and start Postgres, migrations, API and worker
 
 The API listens on http://localhost:8080 (`/healthz`, `/readyz`).
 
+Load the dictionary (about 30 MB of downloads; set `FUXI_DATA_DIR` to choose where they go):
+
+```bash
+task data:download   # CC-CEDICT, the HSK 3.0 syllabus list, Tatoeba
+task data:import     # about a minute; running it again does nothing
+```
+
+Then try it:
+
+```bash
+curl "http://localhost:8080/v1/dict/search?q=ma"        # 吗, 马, 骂 … 妈
+curl "http://localhost:8080/v1/dict/search?q=know"      # 知道, 认识 …
+curl "http://localhost:8080/v1/dict/entries/{id}?max_hsk=2"   # a word with easy example sentences
+```
+
+Search accepts characters (simplified or traditional), pinyin with tone numbers (`ci2dian3`, `lv4`), pinyin without tones (`zhidao`, `zhīdào`) and English. A Chinese phrase that isn't a dictionary word is split into the words it contains: `你今天吃饭了吗` → 你, 今天, 吃饭, 了, 吗.
+
 ```bash
 task test      # all tests, including integration tests against real Postgres
 task lint      # go vet + golangci-lint
@@ -49,4 +66,8 @@ task --list    # every command
 
 ## Credits
 
-Dictionary and sentence data (from M1): [CC-CEDICT](https://cc-cedict.org/wiki/) (CC BY-SA 4.0), [Tatoeba](https://tatoeba.org) (CC BY 2.0 FR), HSK 3.0 word lists. Attribution is shown in the app as each dataset is added.
+- Dictionary: [CC-CEDICT](https://cc-cedict.org/wiki/), CC BY-SA 4.0. Dictionary data derived from it stays CC BY-SA and is kept separate from the code.
+- Example sentences: [Tatoeba](https://tatoeba.org), CC BY 2.0 FR.
+- HSK levels: the HSK 3.0 examination syllabus (新版HSK考试大纲, Center for Language Education and Cooperation, 2025), as extracted by [harukicoder/hsk30](https://github.com/harukicoder/hsk30) (MIT).
+
+The app will show these credits too once it has screens (M3).

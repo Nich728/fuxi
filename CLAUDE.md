@@ -11,7 +11,7 @@ Fuxi (复习, "to review") is a Mandarin study app: FSRS flashcard reviews, an A
 
 ## Current milestone
 
-M0 Foundations is done (repo layout, binary modes, Compose, migrations, CI, ADR template). Next is **M1 Content & search** (SYSTEM_DESIGN §5, §10, §14).
+M0 Foundations and M1 Content & search are done: `internal/dictionary` imports CC-CEDICT, the HSK 3.0 syllabus and Tatoeba, and serves `/v1/dict/search` and `/v1/dict/entries/{id}`. Next is **M2 Study core** (auth, invites, decks, notes, cards, FSRS, reviews; SYSTEM_DESIGN §4.1, §4.3, §6, §12.1, §14).
 
 ## Commands
 
@@ -25,6 +25,10 @@ The owner develops on **Windows**. Use Task, not make (ADR-0017).
 | `task lint` | `go vet` + golangci-lint |
 | `task migrate -- status` | Run `fuxi migrate` on the host |
 | `task migrate:new -- name` | New goose migration in `db/migrations/` |
+| `task sqlc` | Regenerate `internal/*/…db` packages from `db/queries/*.sql` (runs sqlc in Docker; it can't build natively here) |
+| `task data:download` / `task data:import` | Fetch the datasets into `FUXI_DATA_DIR` (set to `D:/fuxi-data` on the owner's PC) and import them |
+
+The local Postgres from Compose is on host port **5433**; the owner has a separate PostgreSQL 17 service on 5432.
 
 ## Rules from the design
 
@@ -39,7 +43,9 @@ The owner develops on **Windows**. Use Task, not make (ADR-0017).
 
 ## Layout
 
-`cmd/fuxi` (the binary) · `internal/platform` (config, clock, db, httpx, logging, migrate) · `internal/<module>` from M1 on · `db/migrations` (embedded goose SQL) · `db/queries` (sqlc, from M1) · `deploy/` (Dockerfile, Compose) · `web/` (PWA, from M3) · `docs/`.
+`cmd/fuxi` (the binary) · `internal/platform` (config, clock, db, httpx, logging, migrate, testdb) · `internal/dictionary` (+ `pinyin`, generated `dictdb`) · `db/migrations` (embedded goose SQL) · `db/queries` (sqlc) · `deploy/` (Dockerfile, Compose) · `web/` (PWA, from M3) · `docs/`.
+
+Integration tests call `testdb.Start(t, true)` for a migrated throwaway Postgres. Bulk imports use pgx `CopyFrom` into temp staging tables; read queries go through sqlc.
 
 ## Style
 

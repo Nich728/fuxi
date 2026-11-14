@@ -6,6 +6,12 @@ vars:
   COMPOSE: docker compose -f deploy/docker-compose.yml
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo dev
+  # Where downloaded datasets live. Set FUXI_DATA_DIR to keep them off a small drive.
+  DATA_DIR: '{{.FUXI_DATA_DIR | default ".data"}}'
+  # Dataset sources (SYSTEM_DESIGN §5). The HSK list is pinned to a commit.
+  CEDICT_URL: https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz
+  HSK_URL: https://raw.githubusercontent.com/harukicoder/hsk30/36c0d11347b5d4caea52917d1262404824ad58d5/corpus/syllabus2025/syllabus2025_words.tsv
+  TATOEBA: https://downloads.tatoeba.org/exports/per_language
 
 env:
   # The Compose Postgres is published on 5433 (see deploy/docker-compose.yml).
@@ -66,6 +72,29 @@ tasks:
       vars: [CLI_ARGS]
     cmds:
       - go run github.com/pressly/goose/v3/cmd/goose@v3.30.0 -dir db/migrations -s create {{.CLI_ARGS}} sql
+
+  sqlc:
+    desc: Regenerate Go code from db/queries with sqlc (runs in Docker)
+    cmds:
+      - docker run --rm -v "{{.ROOT_DIR}}:/src" -w /src sqlc/sqlc:1.31.1 generate
+
+  data:download:
+    desc: Download CC-CEDICT, the HSK 3.0 syllabus list and Tatoeba into DATA_DIR
+    cmds:
+      - mkdir -p "{{.DATA_DIR}}"
+      - curl -fL --retry 3 -o "{{.DATA_DIR}}/cedict_ts.u8.gz" {{.CEDICT_URL}}
+      - curl -fL --retry 3 -o "{{.DATA_DIR}}/syllabus2025_words.tsv" {{.HSK_URL}}
+      - curl -fL --retry 3 -o "{{.DATA_DIR}}/cmn_sentences.tsv.bz2" {{.TATOEBA}}/cmn/cmn_sentences.tsv.bz2
+      - curl -fL --retry 3 -o "{{.DATA_DIR}}/eng_sentences.tsv.bz2" {{.TATOEBA}}/eng/eng_sentences.tsv.bz2
+      - curl -fL --retry 3 -o "{{.DATA_DIR}}/cmn-eng_links.tsv.bz2" {{.TATOEBA}}/cmn/cmn-eng_links.tsv.bz2
+
+  data:import:
+    desc: Import the downloaded datasets into the local database (order matters; repeats are no-ops)
+    deps: [migrate]
+    cmds:
+      - go run ./cmd/fuxi import cedict "{{.DATA_DIR}}/cedict_ts.u8.gz"
+      - go run ./cmd/fuxi import hsk "{{.DATA_DIR}}/syllabus2025_words.tsv"
+      - go run ./cmd/fuxi import tatoeba "{{.DATA_DIR}}/cmn_sentences.tsv.bz2" "{{.DATA_DIR}}/eng_sentences.tsv.bz2" "{{.DATA_DIR}}/cmn-eng_links.tsv.bz2"
 
   test:
     desc: Run all tests, including integration tests (needs Docker)

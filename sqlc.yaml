@@ -1,0 +1,13 @@
+# sqlc generates type-safe Go from the SQL in db/queries (SYSTEM_DESIGN §3).
+# Run `task sqlc` (it uses the sqlc Docker image, so no C compiler is needed on Windows).
+version: "2"
+sql:
+  - engine: postgresql
+    schema: db/migrations
+    queries: db/queries/dictionary.sql
+    gen:
+      go:
+        package: dictdb
+        out: internal/dictionary/dictdb
+        sql_package: pgx/v5
+        emit_empty_slices: true

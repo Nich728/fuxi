@@ -4,46 +4,18 @@ import (
 	"bytes"
 	"context"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
 
-	"github.com/Nich728/fuxi/internal/platform/db"
 	"github.com/Nich728/fuxi/internal/platform/migrate"
+	"github.com/Nich728/fuxi/internal/platform/testdb"
 )
 
 // TestUpDownUp runs every migration against a real Postgres 16, rolls each
 // back, and applies them again, so a broken Down section fails CI.
 func TestUpDownUp(t *testing.T) {
-	if testing.Short() {
-		t.Skip("integration test: needs Docker")
-	}
 	ctx := context.Background()
-
-	ctr, err := postgres.Run(ctx, "postgres:16-alpine",
-		postgres.WithDatabase("fuxi"),
-		postgres.WithUsername("fuxi"),
-		postgres.WithPassword("fuxi"),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).WithStartupTimeout(60*time.Second)),
-	)
-	testcontainers.CleanupContainer(t, ctr)
-	if err != nil {
-		t.Fatalf("start postgres: %v", err)
-	}
-	url, err := ctr.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		t.Fatal(err)
-	}
-	pool, err := db.Open(ctx, url)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer pool.Close()
+	pool := testdb.Start(t, false)
 
 	var out bytes.Buffer
 	if err := migrate.Up(ctx, pool, &out); err != nil {
@@ -51,6 +23,7 @@ func TestUpDownUp(t *testing.T) {
 	}
 	assertExtension(t, pool, "pg_trgm", true)
 	assertExtension(t, pool, "citext", true)
+	assertTable(t, pool, "dict_entries", true)
 
 	// Second Up is a no-op.
 	out.Reset()
@@ -69,10 +42,24 @@ func TestUpDownUp(t *testing.T) {
 		}
 	}
 	assertExtension(t, pool, "pg_trgm", false)
+	assertTable(t, pool, "dict_entries", false)
 	if err := migrate.Up(ctx, pool, &out); err != nil {
 		t.Fatalf("up after down: %v", err)
 	}
 	assertExtension(t, pool, "pg_trgm", true)
+	assertTable(t, pool, "dict_entries", true)
+}
+
+func assertTable(t *testing.T, pool *pgxpool.Pool, name string, want bool) {
+	t.Helper()
+	var got bool
+	if err := pool.QueryRow(context.Background(),
+		`SELECT to_regclass($1) IS NOT NULL`, name).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("table %s exists = %v, want %v", name, got, want)
+	}
 }
 
 func assertExtension(t *testing.T, pool *pgxpool.Pool, name string, want bool) {
