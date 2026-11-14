@@ -55,7 +55,7 @@ curl "http://localhost:8080/v1/dict/search?q=know"      # 知道, 认识 …
 curl "http://localhost:8080/v1/dict/entries/{id}?max_hsk=2"   # a word with easy example sentences
 ```
 
-Search accepts characters (simplified or traditional), pinyin with tone numbers (`ci2dian3`, `lv4`), pinyin without tones (`zhidao`, `zhīdào`) and English.
+Search accepts characters (simplified or traditional), pinyin with tone numbers (`ci2dian3`, `lv4`), pinyin without tones (`zhidao`, `zhīdào`) and English. A Chinese phrase that isn't a dictionary word is split into the words it contains: `你今天吃饭了吗` → 你, 今天, 吃饭, 了, 吗.
 
 ```bash
 task test      # all tests, including integration tests against real Postgres

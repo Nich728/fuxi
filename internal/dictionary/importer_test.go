@@ -198,6 +198,20 @@ func TestImportAndSearch(t *testing.T) {
 		})
 	}
 
+	t.Run("a phrase falls back to the words inside it", func(t *testing.T) {
+		if got := searchWords(t, srv.URL, "我喜欢学习中文", true); !slices.Equal(got, []string{"我", "喜欢", "学习", "中文"}) {
+			t.Errorf("我喜欢学习中文 → %v", got)
+		}
+		if got := searchWords(t, srv.URL, "我喜歡鑫中文", true); !slices.Equal(got, []string{"我", "喜欢", "中文"}) {
+			t.Errorf("traditional input with an unknown character → %v", got)
+		}
+		searchWords(t, srv.URL, "学习", false) // a real word is not split
+		// Nothing to split into: a plain "no results", not an empty word list.
+		if got := searchWords(t, srv.URL, "鑫", false); len(got) != 0 {
+			t.Errorf("unknown character → %v, want no results", got)
+		}
+	})
+
 	t.Run("names and variants rank below ordinary words", func(t *testing.T) {
 		var body struct {
 			Results []dictionary.Entry `json:"results"`
@@ -262,6 +276,45 @@ func TestImportAndSearch(t *testing.T) {
 		getJSON(t, srv.URL+"/v1/dict/entries/999999", http.StatusNotFound, nil)
 		getJSON(t, srv.URL+"/v1/dict/entries/abc", http.StatusNotFound, nil)
 	})
+
+	// Runs last: it adds a word to the dictionary.
+	t.Run("the phrase splitter picks up newly imported words", func(t *testing.T) {
+		if got := searchWords(t, srv.URL, "我喜欢学习", true); !slices.Equal(got, []string{"我", "喜欢", "学习"}) {
+			t.Fatalf("before: %v", got)
+		}
+		src, err := os.ReadFile(td("cedict_sample.u8"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		p := filepath.Join(t.TempDir(), "cedict_with_compound.u8")
+		extra := "喜歡學習 喜欢学习 [xi3 huan5 xue2 xi2] /a made-up compound for this test/\n"
+		if err := os.WriteFile(p, append(src, extra...), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := im.ImportCedict(ctx, p); err != nil {
+			t.Fatal(err)
+		}
+		// 我喜欢学习 still matches no entry by prefix, so it is split, now with the new word.
+		if got := searchWords(t, srv.URL, "我喜欢学习", true); !slices.Equal(got, []string{"我", "喜欢学习"}) {
+			t.Errorf("after import: %v, want [我 喜欢学习]", got)
+		}
+	})
+}
+
+// searchWords searches q and returns the simplified forms of the results,
+// failing unless the response's segmented flag equals wantSegmented.
+func searchWords(t *testing.T, base, q string, wantSegmented bool) []string {
+	t.Helper()
+	var body dictionary.SearchResult
+	getJSON(t, base+"/v1/dict/search?q="+url.QueryEscape(q), http.StatusOK, &body)
+	if body.Segmented != wantSegmented {
+		t.Errorf("%s: segmented = %v, want %v", q, body.Segmented, wantSegmented)
+	}
+	words := make([]string, len(body.Results))
+	for i, r := range body.Results {
+		words[i] = r.Simplified
+	}
+	return words
 }
 
 func router(pool *pgxpool.Pool) http.Handler {

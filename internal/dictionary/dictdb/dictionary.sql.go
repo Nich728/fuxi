@@ -11,6 +11,68 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const dictionaryVersion = `-- name: DictionaryVersion :one
+SELECT coalesce(max(finished_at), 'epoch')::timestamptz AS version
+FROM import_runs
+WHERE status = 'succeeded'
+`
+
+// Changes whenever an import succeeds, so in-memory caches know to rebuild.
+func (q *Queries) DictionaryVersion(ctx context.Context) (pgtype.Timestamptz, error) {
+	row := q.db.QueryRow(ctx, dictionaryVersion)
+	var version pgtype.Timestamptz
+	err := row.Scan(&version)
+	return version, err
+}
+
+const getEntriesByIDs = `-- name: GetEntriesByIDs :many
+SELECT id, simplified, traditional, pinyin_marked, definitions, hsk_level, frequency_rank,
+       true::bool AS exact
+FROM dict_entries
+WHERE id = ANY($1::bigint[])
+`
+
+type GetEntriesByIDsRow struct {
+	ID            int64
+	Simplified    string
+	Traditional   string
+	PinyinMarked  string
+	Definitions   []string
+	HskLevel      pgtype.Int2
+	FrequencyRank pgtype.Int4
+	Exact         bool
+}
+
+// Entries for the words found in a phrase; the caller restores phrase order.
+func (q *Queries) GetEntriesByIDs(ctx context.Context, ids []int64) ([]GetEntriesByIDsRow, error) {
+	rows, err := q.db.Query(ctx, getEntriesByIDs, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetEntriesByIDsRow{}
+	for rows.Next() {
+		var i GetEntriesByIDsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Simplified,
+			&i.Traditional,
+			&i.PinyinMarked,
+			&i.Definitions,
+			&i.HskLevel,
+			&i.FrequencyRank,
+			&i.Exact,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getEntry = `-- name: GetEntry :one
 SELECT id, simplified, traditional, pinyin_numbered, pinyin_marked, definitions, hsk_level, frequency_rank
 FROM dict_entries

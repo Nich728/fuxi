@@ -831,7 +831,7 @@ Base path `/v1`. JSON; errors use RFC 9457 `application/problem+json`. Cursor pa
 | Stats | `GET /stats/summary` · `GET /stats/forecast?days=30` |
 | Ops | `GET /healthz` · `GET /readyz` · `GET /metrics` (internal) |
 
-**Search routing:** input containing hanzi → prefix match on simplified or traditional. ASCII with tone digits (`ma3`) → numbered pinyin. Plain ASCII → trigram match on toneless pinyin, unioned with English full-text search. Ranking: exact match, then HSK level, then frequency.
+**Search routing:** input containing hanzi → prefix match on simplified or traditional; if nothing matches, the phrase is split into the dictionary words it contains (the §5 step 4 segmenter, cached in memory and rebuilt after an import) and the response carries `"segmented": true`, so 我喜欢 returns 我, 喜欢. ASCII with tone digits (`ma3`) → numbered pinyin. Plain ASCII → trigram match on toneless pinyin, unioned with English full-text search. Ranking: exact match, then ordinary words before names and pointer entries not on the HSK list, then HSK level, then frequency.
 
 ## 11. Background jobs
 

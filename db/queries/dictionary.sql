@@ -64,3 +64,16 @@ WHERE sw.entry_id = sqlc.arg(entry_id) AND s.trust >= 0
   AND (sqlc.narg(max_hsk)::smallint IS NULL OR s.max_hsk <= sqlc.narg(max_hsk)::smallint)
 ORDER BY s.max_hsk ASC NULLS LAST, char_length(s.zh), s.id
 LIMIT sqlc.arg(lim);
+
+-- name: GetEntriesByIDs :many
+-- Entries for the words found in a phrase; the caller restores phrase order.
+SELECT id, simplified, traditional, pinyin_marked, definitions, hsk_level, frequency_rank,
+       true::bool AS exact
+FROM dict_entries
+WHERE id = ANY(sqlc.arg(ids)::bigint[]);
+
+-- name: DictionaryVersion :one
+-- Changes whenever an import succeeds, so in-memory caches know to rebuild.
+SELECT coalesce(max(finished_at), 'epoch')::timestamptz AS version
+FROM import_runs
+WHERE status = 'succeeded';

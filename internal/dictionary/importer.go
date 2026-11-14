@@ -9,6 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/Nich728/fuxi/internal/dictionary/dictdb"
 )
 
 // Importer loads open datasets into the content tables (SYSTEM_DESIGN §5).
@@ -307,6 +309,26 @@ func requireDictionary(ctx context.Context, tx pgx.Tx) error {
 	return nil
 }
 
+// loadSegmenter builds a Segmenter over every dictionary entry.
+func loadSegmenter(ctx context.Context, db dictdb.DBTX) (*Segmenter, error) {
+	rows, err := db.Query(ctx, `
+		SELECT id, simplified, traditional, coalesce(hsk_level, 0), secondary FROM dict_entries`)
+	if err != nil {
+		return nil, fmt.Errorf("load segmenter: %w", err)
+	}
+	entries, err := pgx.CollectRows(rows, func(row pgx.CollectableRow) (SegmentEntry, error) {
+		var e SegmentEntry
+		var level int16
+		err := row.Scan(&e.ID, &e.Simplified, &e.Traditional, &level, &e.Secondary)
+		e.HSKLevel = int(level)
+		return e, err
+	})
+	if err != nil {
+		return nil, fmt.Errorf("load segmenter: %w", err)
+	}
+	return NewSegmenter(entries), nil
+}
+
 // relink rebuilds sentence_words from scratch, then derives each sentence's
 // max_hsk and each entry's frequency_rank from the links.
 //
@@ -317,27 +339,10 @@ func requireDictionary(ctx context.Context, tx pgx.Tx) error {
 // frequency_rank ranks entries by how many sentences use them (1 = most).
 // It's a stand-in until a proper word-frequency list is chosen.
 func relink(ctx context.Context, tx pgx.Tx) error {
-	rows, err := tx.Query(ctx, `
-		SELECT id, simplified, traditional, coalesce(hsk_level, 0), secondary FROM dict_entries`)
+	seg, err := loadSegmenter(ctx, tx)
 	if err != nil {
 		return err
 	}
-	var entries []SegmentEntry
-	for rows.Next() {
-		var e SegmentEntry
-		var level int16
-		if err := rows.Scan(&e.ID, &e.Simplified, &e.Traditional, &level, &e.Secondary); err != nil {
-			rows.Close()
-			return err
-		}
-		e.HSKLevel = int(level)
-		entries = append(entries, e)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	seg := NewSegmenter(entries)
 
 	type link struct{ sentence, entry int64 }
 	var links []link

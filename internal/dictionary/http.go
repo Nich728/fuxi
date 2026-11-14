@@ -28,14 +28,14 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/dict/entries/{id}", h.entry)
 }
 
-// search: GET /dict/search?q=ma&limit=20 → {"results": [...]}
+// search: GET /dict/search?q=ma&limit=20 → {"results": [...], "segmented": false}
 func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 	limit, err := optionalInt(r, "limit", 1, MaxLimit)
 	if err != nil {
 		httpx.WriteProblem(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	results, err := h.svc.Search(r.Context(), r.URL.Query().Get("q"), limit)
+	res, err := h.svc.Search(r.Context(), r.URL.Query().Get("q"), limit)
 	if errors.Is(err, ErrBadQuery) {
 		httpx.WriteProblem(w, http.StatusBadRequest, err.Error())
 		return
@@ -44,7 +44,7 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, err)
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"results": results})
+	httpx.WriteJSON(w, http.StatusOK, res)
 }
 
 // entry: GET /dict/entries/123?max_hsk=3 → the entry with example sentences.
