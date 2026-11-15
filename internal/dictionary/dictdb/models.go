@@ -8,6 +8,53 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Card struct {
+	ID         pgtype.UUID
+	UserID     pgtype.UUID
+	NoteID     pgtype.UUID
+	CardType   string
+	Suspended  bool
+	FieldHlc   []byte
+	DeletedHlc pgtype.Text
+	CreatedAt  pgtype.Timestamptz
+}
+
+type CardState struct {
+	CardID         pgtype.UUID
+	UserID         pgtype.UUID
+	DeckID         pgtype.UUID
+	State          int16
+	DueAt          pgtype.Timestamptz
+	Stability      float64
+	Difficulty     float64
+	Reps           int32
+	Lapses         int32
+	RemainingSteps int32
+	LastReviewAt   pgtype.Timestamptz
+	FirstReviewAt  pgtype.Timestamptz
+	ParamsVersion  int32
+	Suspended      bool
+}
+
+type Deck struct {
+	ID         pgtype.UUID
+	UserID     pgtype.UUID
+	Name       string
+	Settings   []byte
+	FieldHlc   []byte
+	DeletedHlc pgtype.Text
+	CreatedAt  pgtype.Timestamptz
+}
+
+type Device struct {
+	ID            pgtype.UUID
+	UserID        pgtype.UUID
+	Name          string
+	LastPulledSeq int64
+	LastSeenAt    pgtype.Timestamptz
+	CreatedAt     pgtype.Timestamptz
+}
+
 type DictEntry struct {
 	ID             int64
 	Source         string
@@ -24,6 +71,14 @@ type DictEntry struct {
 	SearchEn       interface{}
 }
 
+type FsrsParam struct {
+	UserID           pgtype.UUID
+	Version          int32
+	Weights          []float64
+	TrainedOnReviews int32
+	CreatedAt        pgtype.Timestamptz
+}
+
 type ImportRun struct {
 	ID           int64
 	Source       string
@@ -32,6 +87,48 @@ type ImportRun struct {
 	RowsUpserted pgtype.Int4
 	StartedAt    pgtype.Timestamptz
 	FinishedAt   pgtype.Timestamptz
+}
+
+type Job struct {
+	ID          int64
+	Kind        string
+	UserID      pgtype.UUID
+	Payload     []byte
+	Status      string
+	RunAt       pgtype.Timestamptz
+	Attempts    int32
+	MaxAttempts int32
+	LockedUntil pgtype.Timestamptz
+	LastError   pgtype.Text
+	Result      []byte
+	DedupeKey   pgtype.Text
+	CreatedAt   pgtype.Timestamptz
+	FinishedAt  pgtype.Timestamptz
+}
+
+type Note struct {
+	ID         pgtype.UUID
+	UserID     pgtype.UUID
+	DeckID     pgtype.UUID
+	EntryID    pgtype.Int8
+	Kind       string
+	Fields     []byte
+	Tags       []string
+	Origin     string
+	FieldHlc   []byte
+	DeletedHlc pgtype.Text
+	CreatedAt  pgtype.Timestamptz
+}
+
+type ReviewLog struct {
+	ID         pgtype.UUID
+	UserID     pgtype.UUID
+	CardID     pgtype.UUID
+	Rating     int16
+	ReviewedAt pgtype.Timestamptz
+	DurationMs pgtype.Int4
+	DeviceID   pgtype.UUID
+	ReceivedAt pgtype.Timestamptz
 }
 
 type Sentence struct {
@@ -47,4 +144,16 @@ type Sentence struct {
 type SentenceWord struct {
 	SentenceID int64
 	EntryID    int64
+}
+
+type User struct {
+	ID          pgtype.UUID
+	Email       string
+	Timezone    string
+	DayStartsAt int16
+	SyncSeq     int64
+	Role        string
+	Settings    []byte
+	CreatedAt   pgtype.Timestamptz
+	LastSeenAt  pgtype.Timestamptz
 }
