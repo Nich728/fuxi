@@ -1,5 +1,7 @@
 # sqlc generates type-safe Go from the SQL in db/queries (SYSTEM_DESIGN §3).
 # Run `task sqlc` (it uses the sqlc Docker image, so no C compiler is needed on Windows).
+#
+# One package per owning module (SYSTEM_DESIGN §2): only that module imports it.
 version: "2"
 sql:
   - engine: postgresql
@@ -11,3 +13,79 @@ sql:
         out: internal/dictionary/dictdb
         sql_package: pgx/v5
         emit_empty_slices: true
+        # The dictionary predates the type overrides used below and keeps pgtype types.
+  - engine: postgresql
+    schema: db/migrations
+    queries: db/queries/identity.sql
+    gen:
+      go:
+        package: identitydb
+        out: internal/identity/identitydb
+        sql_package: pgx/v5
+        emit_empty_slices: true
+        overrides: &overrides
+        - db_type: uuid
+          go_type: github.com/google/uuid.UUID
+        - db_type: uuid
+          nullable: true
+          go_type: github.com/google/uuid.NullUUID
+        - db_type: timestamptz
+          go_type: time.Time
+        - db_type: timestamptz
+          nullable: true
+          go_type:
+            import: time
+            type: Time
+            pointer: true
+        - db_type: jsonb
+          go_type: encoding/json.RawMessage
+        - db_type: text
+          nullable: true
+          go_type:
+            type: string
+            pointer: true
+        - db_type: pg_catalog.int2
+          nullable: true
+          go_type:
+            type: int16
+            pointer: true
+        - db_type: pg_catalog.int4
+          nullable: true
+          go_type:
+            type: int32
+            pointer: true
+        - db_type: pg_catalog.int8
+          nullable: true
+          go_type:
+            type: int64
+            pointer: true
+  - engine: postgresql
+    schema: db/migrations
+    queries: db/queries/study.sql
+    gen:
+      go:
+        package: studydb
+        out: internal/study/studydb
+        sql_package: pgx/v5
+        emit_empty_slices: true
+        overrides: *overrides
+  - engine: postgresql
+    schema: db/migrations
+    queries: db/queries/scheduling.sql
+    gen:
+      go:
+        package: schedulingdb
+        out: internal/scheduling/schedulingdb
+        sql_package: pgx/v5
+        emit_empty_slices: true
+        overrides: *overrides
+  - engine: postgresql
+    schema: db/migrations
+    queries: db/queries/jobs.sql
+    gen:
+      go:
+        package: jobsdb
+        out: internal/jobs/jobsdb
+        sql_package: pgx/v5
+        emit_empty_slices: true
+        overrides: *overrides

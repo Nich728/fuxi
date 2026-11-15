@@ -14,7 +14,7 @@ Fuxi is also a backend portfolio project: a deterministic scheduling engine, an 
 |---|---|---|
 | M0 Foundations | ✅ | Binary modes, Compose, migrations, CI |
 | M1 Content & search | ✅ | CC-CEDICT, Tatoeba, HSK 3.0 importers; search API |
-| M2 Study core | | Auth, decks, notes, cards, FSRS reviews |
+| M2 Study core | ✅ | Sign-in via Cloudflare Access, decks, notes, cards, FSRS reviews, due queue, CSV import |
 | M3 Daily-usable client | | Installable PWA |
 | M4 Vocabulary check + AI tutor | | |
 | M5 Offline sync | | |
@@ -56,6 +56,36 @@ curl "http://localhost:8080/v1/dict/entries/{id}?max_hsk=2"   # a word with easy
 ```
 
 Search accepts characters (simplified or traditional), pinyin with tone numbers (`ci2dian3`, `lv4`), pinyin without tones (`zhidao`, `zhīdào`) and English. A Chinese phrase that isn't a dictionary word is split into the words it contains: `你今天吃饭了吗` → 你, 今天, 吃饭, 了, 吗.
+
+### Study through the API
+
+Locally, sign-in is replaced by dev mode (`FUXI_AUTH=dev`): every request is signed in as `dev@fuxi.localhost`, or as the email in an `X-Fuxi-Dev-Email` header. Ids for anything you create are UUIDs you generate, so retries are safe.
+
+```bash
+curl -X PUT  localhost:8080/v1/devices/0193a000-0000-7000-8000-000000000001 -d '{"name": "laptop"}'
+curl -X POST localhost:8080/v1/decks -d '{"id": "0193a000-0000-7000-8000-00000000d001", "name": "HSK 1"}'
+curl -X POST localhost:8080/v1/decks/0193a000-0000-7000-8000-00000000d001/notes \
+     -d '{"id": "0193a000-0000-7000-8000-00000000a001", "entry_id": 123}'   # an id from /v1/dict/search
+curl localhost:8080/v1/study/queue                                          # due and new cards
+curl -X POST localhost:8080/v1/reviews -d '{"id": "<new uuid>", "card_id": "<from the queue>",
+     "rating": 3, "reviewed_at": "2026-11-14T09:00:00Z", "device_id": "0193a000-0000-7000-8000-000000000001"}'
+curl -X POST "localhost:8080/v1/decks/0193a000-0000-7000-8000-00000000d001/import?import_id=<new uuid>" \
+     --data-binary @vocab.csv                                               # hanzi,pinyin,meaning per line → {"job_id": 1}
+curl localhost:8080/v1/jobs/1
+```
+
+### Sign-in in production
+
+Fuxi doesn't store passwords. [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/) (free for up to 50 users) sits in front of the app's domain and signs people in with Google or an emailed code; the API verifies the token Access attaches to every request ([ADR-0018](docs/adr/0018-cloudflare-access-for-sign-in.md)).
+
+1. Put the domain on Cloudflare. In Zero Trust, add Google and/or One-time PIN as login methods.
+2. Create a self-hosted Access application for the domain, with a policy that allows the emails you invite.
+3. Run the API with `FUXI_AUTH=cloudflare`, `FUXI_ACCESS_TEAM_DOMAIN=https://<team>.cloudflareaccess.com`, `FUXI_ACCESS_AUD=<the application's AUD tag>`, and optionally `FUXI_OWNER_EMAIL`.
+4. Expose the origin only through Cloudflare, for example with a Cloudflare Tunnel.
+
+To invite a friend, add their email to the policy. To sign a device out remotely, revoke the user's sessions in Zero Trust.
+
+### Tests and other commands
 
 ```bash
 task test      # all tests, including integration tests against real Postgres

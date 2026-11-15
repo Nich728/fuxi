@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Status** | v1.6, for review |
-| **Last updated** | 22 October 2026 |
+| **Status** | v1.7, for review |
+| **Last updated** | 14 November 2026 |
 | **Companion doc** | [`PRD.md`](./PRD.md) |
 
 This document describes *how* Fuxi is built. The PRD describes *what* it does and *why*. Section numbers here are referenced from code comments and ADRs, so keep them stable when editing.
@@ -115,45 +115,28 @@ Ids for anything a client can create are **UUIDv7**, generated on the client, so
 
 ### 4.1 Identity
 
+Sign-in is delegated to Cloudflare Access (ADR-0018), so Fuxi stores no passwords, refresh tokens or invite codes. A user row is created the first time a verified Access token arrives for a new email (§12.1).
+
 ```sql
 CREATE TABLE users (
-    id              uuid PRIMARY KEY,
-    email           citext UNIQUE NOT NULL,
-    password_hash   text NOT NULL,
+    id              uuid PRIMARY KEY,                -- server-generated UUIDv7
+    email           citext UNIQUE NOT NULL,          -- from the Access token
     timezone        text NOT NULL DEFAULT 'Asia/Jakarta',
     day_starts_at   smallint NOT NULL DEFAULT 4 CHECK (day_starts_at BETWEEN 0 AND 23),
     sync_seq        bigint NOT NULL DEFAULT 0,       -- per-user change counter (§7)
     role            text NOT NULL DEFAULT 'member',  -- member | owner
     settings        jsonb NOT NULL DEFAULT '{"explanation_language": "en", "tone_colours": false}',
-    invite_id       uuid,                            -- which invite created the account
-    created_at      timestamptz NOT NULL DEFAULT now()
+    created_at      timestamptz NOT NULL,
+    last_seen_at    timestamptz NOT NULL             -- updated at most hourly
 );
 
 CREATE TABLE devices (
-    id               uuid PRIMARY KEY,
+    id               uuid PRIMARY KEY,               -- client-generated UUIDv7, kept by the PWA
     user_id          uuid NOT NULL REFERENCES users(id),
     name             text NOT NULL,
     last_pulled_seq  bigint NOT NULL DEFAULT 0,
-    last_seen_at     timestamptz
-);
-
-CREATE TABLE invites (
-    id          uuid PRIMARY KEY,
-    code_hash   bytea NOT NULL UNIQUE,        -- sha256 of the code; the plain code is shown once
-    note        text,                         -- e.g. "for Andi"
-    max_uses    integer NOT NULL DEFAULT 1,
-    used_count  integer NOT NULL DEFAULT 0,
-    expires_at  timestamptz NOT NULL,
-    created_at  timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE TABLE refresh_tokens (
-    id          uuid PRIMARY KEY,
-    user_id     uuid NOT NULL REFERENCES users(id),
-    device_id   uuid NOT NULL REFERENCES devices(id),
-    token_hash  bytea NOT NULL UNIQUE,
-    expires_at  timestamptz NOT NULL,
-    revoked_at  timestamptz
+    last_seen_at     timestamptz NOT NULL,
+    created_at       timestamptz NOT NULL
 );
 ```
 
@@ -261,20 +244,27 @@ CREATE INDEX review_logs_card_idx ON review_logs (card_id, reviewed_at, id);
 CREATE INDEX review_logs_user_idx ON review_logs (user_id, reviewed_at);
 
 -- Derived cache: a pure function of (review_logs for the card, fsrs params version).
+-- One row per live card, created with the card (state new); deleting the card
+-- deletes the row, since the log can always rebuild it.
 CREATE TABLE card_states (
-    card_id         uuid PRIMARY KEY REFERENCES cards(id),
-    user_id         uuid NOT NULL,
-    state           smallint NOT NULL,       -- new | learning | review | relearning
-    due_at          timestamptz NOT NULL,
-    stability       double precision NOT NULL,
-    difficulty      double precision NOT NULL,
-    reps            integer NOT NULL,
-    lapses          integer NOT NULL,
-    last_review_at  timestamptz,
-    params_version  integer NOT NULL,
-    suspended       boolean NOT NULL DEFAULT false   -- denormalised from cards for the queue index
+    card_id          uuid PRIMARY KEY REFERENCES cards(id),
+    user_id          uuid NOT NULL,
+    deck_id          uuid NOT NULL,           -- denormalised from notes for the queue
+    state            smallint NOT NULL,       -- 0 new | 1 learning | 2 review | 3 relearning
+    due_at           timestamptz NOT NULL,
+    stability        double precision NOT NULL,
+    difficulty       double precision NOT NULL,
+    reps             integer NOT NULL,
+    lapses           integer NOT NULL,
+    remaining_steps  integer NOT NULL DEFAULT 0,  -- learning steps left (go-fsrs v4)
+    last_review_at   timestamptz,
+    first_review_at  timestamptz,                 -- when it stopped being new (§6.3)
+    params_version   integer NOT NULL,
+    suspended        boolean NOT NULL DEFAULT false   -- denormalised from cards for the queue index
 );
-CREATE INDEX card_states_due_idx ON card_states (user_id, due_at) WHERE NOT suspended;
+CREATE INDEX card_states_due_idx ON card_states (user_id, due_at) WHERE NOT suspended AND state <> 0;
+CREATE INDEX card_states_new_idx ON card_states (user_id, deck_id) WHERE NOT suspended AND state = 0;
+CREATE INDEX card_states_introduced_idx ON card_states (user_id, deck_id, first_review_at);
 
 CREATE TABLE fsrs_params (
     user_id             uuid NOT NULL REFERENCES users(id),
@@ -285,6 +275,8 @@ CREATE TABLE fsrs_params (
     PRIMARY KEY (user_id, version)
 );
 ```
+
+Decks, notes and cards also carry `created_at`. Card ids are UUIDv5 of `(note_id, card_type)`, so every device derives the same id offline. Until M5 the server writes `field_hlc` and `deleted_hlc` itself, as the only HLC node. Deleting a deck or note sets `deleted_hlc` on it and its cards (ADR-0006); review logs are kept.
 
 ### 4.4 Sync
 
@@ -435,6 +427,7 @@ CREATE TABLE placement_items (
 CREATE TABLE jobs (
     id            bigserial PRIMARY KEY,
     kind          text NOT NULL,
+    user_id       uuid REFERENCES users(id),        -- owner of a user-started job (GET /jobs/{id})
     payload       jsonb NOT NULL,
     status        text NOT NULL DEFAULT 'queued',   -- queued | running | succeeded | failed | dead
     run_at        timestamptz NOT NULL DEFAULT now(),
@@ -442,7 +435,10 @@ CREATE TABLE jobs (
     max_attempts  integer NOT NULL DEFAULT 5,
     locked_until  timestamptz,
     last_error    text,
-    dedupe_key    text UNIQUE                        -- optional: prevents duplicate enqueues
+    result        jsonb,                             -- handler output, e.g. rows imported
+    dedupe_key    text UNIQUE,                       -- optional: prevents duplicate enqueues
+    created_at    timestamptz NOT NULL,
+    finished_at   timestamptz
 );
 CREATE INDEX jobs_ready_idx ON jobs (run_at) WHERE status = 'queued';
 ```
@@ -470,7 +466,7 @@ type Scheduler interface {
     Replay(reviews []Review, p Params) CardState
 }
 ```
-- Implemented on top of go-fsrs. Fuzz is either disabled or seeded from `(card_id, reps)` so output is deterministic.
+- Implemented on top of go-fsrs v4 (`internal/scheduling`). Fuzz is disabled (v4's default), so output is deterministic. Times are rounded to microseconds, Postgres's precision, so a state read back from `card_states` equals the one computed in memory.
 - `Replay` is a fold over `Next`, ordered by `(reviewed_at, id)`.
 
 ### 6.2 Submitting a review (online)
@@ -490,10 +486,10 @@ WHERE cs.user_id = $1
 ORDER BY cs.due_at
 LIMIT $3;
 ```
-New cards are added up to each deck's `new_per_day` minus new cards already introduced today, counted from `review_logs` since the start of the study day.
+Cards in state new are excluded above. New cards are added up to each deck's `new_per_day` minus new cards already introduced today, counted from `card_states.first_review_at` since the start of the study day; they come oldest note first, recognition before recall.
 
 ### 6.4 Study day
-`day_start = local date at day_starts_at:00 in users.timezone`, converted to UTC per request. Store everything in UTC. Tests cover timezone changes and DST transitions.
+`day_start = local date at day_starts_at:00 in users.timezone`, converted to UTC per request. Store everything in UTC. Tests cover timezone changes and DST transitions (a study day can be 23 or 25 hours). The binary embeds the time zone database (`time/tzdata`), since the distroless image has none.
 
 ### 6.5 Personalised parameters (worker job `fsrs.tune`)
 Runs nightly for users with at least about 1,000 reviews and at least 200 new ones since the last tune. It fits FSRS weights on the user's log, stores a new `fsrs_params` version, then enqueues `fsrs.rebuild` jobs that recompute `card_states` in batches of 1,000 cards. The FSRS optimiser is most mature in the Python and Rust ecosystems, so this job may shell out to a small Python script. Check what Go offers at implementation time.
@@ -817,12 +813,12 @@ Base path `/v1`. JSON; errors use RFC 9457 `application/problem+json`. Cursor pa
 
 | Group | Endpoints |
 |---|---|
-| Auth | `POST /auth/register {email, password, invite_code}` · `POST /auth/login` · `POST /auth/refresh` · `POST /auth/logout` · `GET /devices` · `DELETE /devices/{id}` |
-| Account | `GET /me` · `PATCH /me/settings` (explanation language, tone colours) |
+| Sign-in | Cloudflare Access in front of the app (ADR-0018); sign out at `/cdn-cgi/access/logout` |
+| Account | `GET /me` · `PATCH /me/settings` (explanation language, tone colours, timezone, day start) · `GET /devices` · `PUT /devices/{id}` · `DELETE /devices/{id}` |
 | Dictionary | `GET /dict/search?q=` · `GET /dict/entries/{id}` |
-| Decks | `GET /decks` · `POST /decks` · `PATCH /decks/{id}` · `DELETE /decks/{id}` |
-| Notes | `POST /decks/{id}/notes` · `PATCH /notes/{id}` · `DELETE /notes/{id}` |
-| Imports | `POST /decks/{id}/import` → `202 {job_id}` · `GET /jobs/{id}` |
+| Decks | `GET /decks` · `POST /decks` · `GET /decks/{id}` · `PATCH /decks/{id}` · `DELETE /decks/{id}` |
+| Notes and cards | `GET /decks/{id}/notes?after=` · `POST /decks/{id}/notes` · `GET /notes/{id}` · `PATCH /notes/{id}` · `DELETE /notes/{id}` · `PATCH /cards/{id} {suspended}` |
+| Imports | `POST /decks/{id}/import?import_id=` (body: the CSV) → `202 {job_id}` · `GET /jobs/{id}` |
 | Study | `GET /study/queue?deck=` · `POST /reviews` |
 | Inbox | `GET /inbox` · `POST /inbox/{id}/accept {deck_id}` · `POST /inbox/{id}/dismiss` · `POST /inbox/accept-all {deck_id}` |
 | Tutor | `POST /tutor/conversations` · `GET /tutor/conversations` · `GET /tutor/conversations/{id}` · `POST /tutor/conversations/{id}/messages` (SSE) · `POST /tutor/extract` |
@@ -863,8 +859,8 @@ On failure: `run_at = now() + backoff(attempts)`, with exponential backoff and j
 ## 12. Cross-cutting concerns
 
 ### 12.1 Security
-- argon2id password hashing; access JWT valid for 15 minutes; rotating, hashed refresh tokens per device.
-- **Invite-only registration:** `POST /auth/register` requires a valid, unexpired invite with uses left. The use count is incremented in the same transaction that creates the user, so a code can't be over-used by parallel sign-ups. The owner creates codes with a CLI command (`fuxi invite create --uses 3 --days 14 --note "for Andi"`); codes are stored hashed.
+- **Sign-in through Cloudflare Access (ADR-0018).** Every `/v1` request except the dictionary must carry an Access JWT, which the API verifies itself: RS256 only, the team's published keys, issuer, audience (the application's AUD tag), expiry with one minute of leeway, and an email. A failed check is 401. `FUXI_AUTH=dev` replaces this with a fixed or header-supplied email for local development only.
+- **Invite-only:** the Access policy's list of allowed emails is the invite list; it replaces invite codes (ADR-0015). A user row is created on the first verified request.
 - **Owner view:** `fuxi usage` (CLI) prints AI usage and cost per account from `ai_usage_daily`, so the owner can see what friends' usage costs.
 - Repository functions require a `userID` argument; there are no unscoped queries. Row-level security is a stretch goal.
 - Limits: CSV up to 2 MB and 5,000 rows; push batch up to 500 ops; tutor message up to 4,000 characters; extraction text up to 10,000 characters.
@@ -907,7 +903,8 @@ On failure: `run_at = now() + backoff(attempts)`, with exponential backoff and j
 - `deploy/docker-compose.yml`: postgres, api, worker, prometheus, grafana. `task up` starts it all (Task replaces make, ADR-0017).
 - Production: Fly.io (api + worker processes, managed Postgres) first; AWS ECS Fargate + RDS as an optional later move.
 - Release: `fuxi migrate up` runs as a release command before new machines start.
-- Secrets: AI provider keys and the JWT signing key come from the platform's secret store, never from the repo.
+- Secrets: AI provider keys come from the platform's secret store, never from the repo. Sign-in needs no server secret: `FUXI_ACCESS_TEAM_DOMAIN` and `FUXI_ACCESS_AUD` are public identifiers, and the signing keys are fetched from Cloudflare.
+- Sign-in: the app's domain is on Cloudflare with an Access application in front of it; in production the origin is reached only through Cloudflare (for example a Cloudflare Tunnel).
 - Daily database backups; a restore is tested once per milestone.
 
 ## 14. Milestones
@@ -918,7 +915,7 @@ Assumes about 8–10 hours per week.
 |---|---|---|---|---|
 | M0 | Foundations | 1 | Repo layout, Compose, migrations, CI, `/healthz`, ADR template | `task up` works; CI green |
 | M1 | Content & search | 2 | CC-CEDICT / Tatoeba / HSK importers, pinyin utils, search API | "ma" → 妈 / 马 / 吗; re-import is a no-op |
-| M2 | Study core | 2 | Auth, devices and invite codes, decks, notes, cards, FSRS wrapper, reviews, due queue, study day, CSV import job | Full review session via API; replay test passes |
+| M2 | Study core | 2 | Sign-in (Cloudflare Access, ADR-0018), devices, decks, notes, cards, FSRS wrapper, reviews, due queue, study day, CSV import job | Full review session via API; replay test passes |
 | M3 | Daily-usable client | 2 | Installable PWA: login, search, add, review, decks; `word_knowledge` + "I already know this"; first deploy | Owner studies with it daily |
 | M4 | Vocabulary check + AI tutor | 4 | Pseudo-word bank, tap-grid check, scoring, `Knowledge()` function, learner profile, simulation tests; provider interface + adapter, tools, agent loop, SSE, chips, extraction, Inbox, cache, budgets, eval set | Simulation targets met (§9.9); ask → chip → card in under 5 s; eval pinyin errors < 2% |
 | M5 | Offline sync | 3 | HLC, outbox, push/pull/snapshot, conflict rules, compaction, property tests | Convergence test passes thousands of runs; offline demo |
@@ -945,14 +942,15 @@ Total: about 17 weeks. Daily use begins after M3; the vocabulary check and tutor
 | 0012 | Deterministic UUIDv5 ids for `word_knowledge`, so concurrent offline marks merge |
 | 0013 | Tap-the-words grid with a 30-word default: speed over precision; underestimates are accepted because later study corrects them |
 | 0014 | Anthropic's hosted, token-billed API for v1; self-hosting kept possible through a portable provider interface (§8.12) |
-| 0015 | Invite-only registration, so sharing with friends can't expose the AI budget to strangers |
+| 0015 | Invite-only registration, so sharing with friends can't expose the AI budget to strangers (now enforced by the Access policy, ADR-0018) |
 | 0016 | HSK 3.0 (2026 word-list revision) for levels, with 7–9 as one band |
 | 0017 | Task instead of make for developer commands, so they work on Windows too |
+| 0018 | Cloudflare Access for sign-in instead of passwords, refresh tokens and invite codes |
 
 Template: `docs/adr/0000-template.md` with the sections Context, Decision, Alternatives considered, Consequences.
 
 ## 16. Open technical questions
-1. Can go-fsrs's current version produce deterministic output with fuzz on, or must fuzz be disabled?
+1. ~~Can go-fsrs's current version produce deterministic output with fuzz on, or must fuzz be disabled?~~ Decided: fuzz stays off (go-fsrs v4's default), §6.1.
 2. Should the FSRS optimiser run in Go, as a Python sidecar script, or through a WASM build?
 3. ~~Which repository has a clearly licensed HSK 3.0 word list?~~ Decided: the 2025 examination syllabus list from harukicoder/hsk30 (MIT), see §5. Fallback if it is withdrawn: bezlant/hsk-3-vocabulary (same syllabus, CC BY-SA 4.0).
 4. Should conversation history be summarised after N turns to control token cost?

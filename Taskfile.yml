@@ -16,6 +16,8 @@ vars:
 env:
   # The Compose Postgres is published on 5433 (see deploy/docker-compose.yml).
   FUXI_DATABASE_URL: postgres://fuxi:fuxi@localhost:5433/fuxi?sslmode=disable
+  # Host runs are local development: no Cloudflare in front (ADR-0018).
+  FUXI_AUTH: '{{.FUXI_AUTH | default "dev"}}'
 
 tasks:
   default:
@@ -61,6 +63,11 @@ tasks:
     deps: [db]
     cmds: [go run ./cmd/fuxi api]
 
+  run:worker:
+    desc: Run the job worker on the host against the Compose Postgres
+    deps: [db]
+    cmds: [go run ./cmd/fuxi worker]
+
   migrate:
     desc: "Run a migration command on the host, e.g. task migrate -- status"
     deps: [db]
@@ -100,7 +107,10 @@ tasks:
     desc: Run all tests, including integration tests (needs Docker)
     cmds:
       # -race needs a 64-bit C compiler, which Windows lacks by default; CI (Linux) always runs it.
-      - go test {{if ne OS "windows"}}-race {{end}}-count=1 ./...
+      # On Windows, testcontainers sometimes fails to detect Docker when several test
+      # packages start Postgres at once ("rootless Docker is not supported"); naming
+      # the Docker Desktop pipe skips the detection.
+      - '{{if eq OS "windows"}}DOCKER_HOST={{.DOCKER_HOST | default "npipe:////./pipe/docker_engine"}} {{end}}go test {{if ne OS "windows"}}-race {{end}}-count=1 ./...'
 
   test:short:
     desc: Run unit tests only (no Docker)

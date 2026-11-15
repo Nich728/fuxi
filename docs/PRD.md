@@ -4,8 +4,8 @@
 |---|---|
 | **Product** | Fuxi (复习, *fùxí*, "to review") |
 | **Owner** | Nicholas Setiono |
-| **Status** | v1.6, all open questions decided |
-| **Last updated** | 22 October 2026 |
+| **Status** | v1.7, all open questions decided |
+| **Last updated** | 14 November 2026 |
 | **Companion doc** | [`SYSTEM_DESIGN.md`](./SYSTEM_DESIGN.md) |
 
 ---
@@ -77,16 +77,16 @@ Priority: **P0** = MVP must-have, **P1** = v1, **P2** = later.
 ### Account
 | ID | Story | Priority |
 |---|---|---|
-| U1 | As a new user, I can sign up with my email and a password. | P0 |
-| U2 | I stay logged in on each device without re-entering my password every day. | P0 |
+| U1 | As a new user, I can sign in with Google or a code sent to my email; my account is created on first sign-in (ADR-0018). | P0 |
+| U2 | I stay signed in on each device without signing in again every day. | P0 |
 | U3 | I can install the web app on my phone's home screen, and it opens full-screen like an app. | P0 |
 | U4 | When I log in on a new device, all my decks, cards and progress are already there. | P0 |
 | U5 | I can see which devices are logged in and log one out remotely. | P1 |
-| U6 | I can reset a forgotten password by email. | P2 |
+| U6 | ~~I can reset a forgotten password by email.~~ No passwords since ADR-0018. | — |
 | U7 | I can export all my data, or delete my account and all its data. | P2 |
-| U8 | I can sign in with Google. | P2 |
-| U9 | Sign-up requires an invite code from the owner, so only invited friends can create accounts. | P1 |
-| U10 | As the owner, I can create invite codes (with a use limit and expiry) and see roughly how much AI usage each account has. | P1 |
+| U8 | I can sign in with Google. (Met by U1, ADR-0018.) | P0 |
+| U9 | Only people the owner has invited can sign in: the owner adds their email to the Cloudflare Access policy (ADR-0018). | P1 |
+| U10 | As the owner, I can invite a friend by adding their email to the Access policy, and see roughly how much AI usage each account has. | P1 |
 
 ### Settings
 | ID | Story | Priority |
@@ -162,7 +162,7 @@ Priority: **P0** = MVP must-have, **P1** = v1, **P2** = later.
 ## 7. Key user flows
 
 ### 7.1 First launch
-1. Sign up with email and password. On a phone, the app offers **Add to Home Screen**.
+1. Sign in with Google or an emailed code. On a phone, the app offers **Add to Home Screen**.
 2. "How long have you been studying Mandarin?" (Never · under 6 months · 6–12 months · 1–2 years · over 2 years). This only sets the starting point of the check.
 3. **Vocabulary check**, about a minute:
    ```
@@ -221,9 +221,9 @@ Skipping is allowed at step 2 or 3. You then pick a level by hand, and the app r
 
 ### 8.1 Accounts
 - **FR-U-1** Every deck, note, card, review, conversation and known-word record belongs to exactly one user. No request can read or change another user's data.
-- **FR-U-2** Logging out on one device does not log out the others.
+- **FR-U-2** Logging out on one device does not log out the others. Signing a device out remotely is done in the Cloudflare Zero Trust dashboard (ADR-0018).
 - **FR-U-3** Reviewing offline works without contacting the server, even after the access token has expired. The device re-authenticates when it reconnects.
-- **FR-U-4** Registration is closed by default and requires a valid invite code. Each code has a maximum number of uses and an expiry date.
+- **FR-U-4** Sign-in is closed by default: only emails on the owner's Cloudflare Access policy can sign in (ADR-0018, replacing invite codes).
 
 ### 8.2 Vocabulary check and learner level
 - **FR-V-1** The check shows at most 30 words (6 screens of 5), about a minute. **Sharpen my estimate** extends it to at most 60 words. **Finish now** produces a result from the screens answered so far.
@@ -268,7 +268,7 @@ Skipping is allowed at step 2 or 3. You then pick a level by hand, and the app r
 |---|---|
 | Performance | Review submit under 50 ms p95; due queue under 100 ms p95; dictionary search under 80 ms p95 (server-side). |
 | Availability | Personal-project level: daily backups; offline reviews cover server downtime. |
-| Security | Passwords hashed (argon2id); short-lived access tokens; every query scoped to the user; API keys for AI providers kept server-side only. |
+| Security | No passwords stored: sign-in through Cloudflare Access, whose signed token the API verifies on every request; every query scoped to the user; API keys for AI providers kept server-side only. |
 | Privacy | Only the question, the conversation and a list of known words are sent to the AI provider. Never email addresses or account data. |
 | Cost | AI spend capped by a per-user daily budget and a global monthly cap. Caching first. v1 uses a hosted, token-billed model; the design keeps a self-hosted open model possible later without code changes outside the AI adapter. |
 | Accessibility | Readable CJK font sizes; tone colours never the only signal. |

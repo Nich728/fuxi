@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	_ "time/tzdata" // the distroless image has no zone database; study days need one (§6.4)
 
 	"github.com/Nich728/fuxi/internal/platform/config"
 	"github.com/Nich728/fuxi/internal/platform/logging"

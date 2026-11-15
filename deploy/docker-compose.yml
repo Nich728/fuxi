@@ -12,6 +12,10 @@ x-app: &app
   environment:
     FUXI_DATABASE_URL: postgres://fuxi:fuxi@postgres:5432/fuxi?sslmode=disable
     FUXI_LOG_LEVEL: ${FUXI_LOG_LEVEL:-info}
+    # Local stack only: sign every request in as FUXI_DEV_EMAIL, or as the
+    # X-Fuxi-Dev-Email header. Production uses Cloudflare Access (ADR-0018).
+    FUXI_AUTH: ${FUXI_AUTH:-dev}
+    FUXI_DEV_EMAIL: ${FUXI_DEV_EMAIL:-dev@fuxi.localhost}
 
 services:
   postgres:

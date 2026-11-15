@@ -297,3 +297,39 @@ func hasToneDigit(s string) bool {
 func escapeLike(s string) string {
 	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(s)
 }
+
+// Lookup returns one entry without its examples, or ErrNotFound. It is what
+// other modules use to copy an entry's facts into a note (ADR-0009).
+func (s *Service) Lookup(ctx context.Context, id int64) (Entry, error) {
+	row, err := s.q.GetEntry(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Entry{}, ErrNotFound
+	}
+	if err != nil {
+		return Entry{}, err
+	}
+	return Entry{
+		ID: row.ID, Simplified: row.Simplified, Traditional: row.Traditional,
+		Pinyin: row.PinyinMarked, Definitions: row.Definitions, HSKLevel: intPtr(row.HskLevel),
+	}, nil
+}
+
+// Headword returns the entries written exactly as hanzi, in simplified or
+// traditional characters, ranked as search ranks them. It never segments.
+func (s *Service) Headword(ctx context.Context, hanzi string) ([]Entry, error) {
+	hanzi = strings.TrimSpace(hanzi)
+	if hanzi == "" || len([]rune(hanzi)) > maxQueryLen {
+		return nil, nil
+	}
+	rows, err := s.q.SearchByHanzi(ctx, dictdb.SearchByHanziParams{Q: escapeLike(hanzi), Lim: MaxLimit})
+	if err != nil {
+		return nil, err
+	}
+	var out []Entry
+	for _, e := range toEntries(rows) {
+		if e.Simplified == hanzi || e.Traditional == hanzi {
+			out = append(out, e)
+		}
+	}
+	return out, nil
+}

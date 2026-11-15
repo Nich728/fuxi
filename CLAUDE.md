@@ -11,7 +11,7 @@ Fuxi (复习, "to review") is a Mandarin study app: FSRS flashcard reviews, an A
 
 ## Current milestone
 
-M0 Foundations and M1 Content & search are done: `internal/dictionary` imports CC-CEDICT, the HSK 3.0 syllabus and Tatoeba, and serves `/v1/dict/search` and `/v1/dict/entries/{id}`. Next is **M2 Study core** (auth, invites, decks, notes, cards, FSRS, reviews; SYSTEM_DESIGN §4.1, §4.3, §6, §12.1, §14).
+M0 Foundations, M1 Content & search and M2 Study core are done. Sign-in is Cloudflare Access (ADR-0018): `internal/identity` verifies the Access JWT and creates users on first sight; locally `FUXI_AUTH=dev` signs requests in as `FUXI_DEV_EMAIL` or the `X-Fuxi-Dev-Email` header. `internal/study` has decks, notes, cards, reviews, the due queue and CSV import; `internal/scheduling` wraps go-fsrs; `internal/jobs` is the Postgres queue. Next is **M3 Daily-usable client** (SYSTEM_DESIGN §14).
 
 ## Commands
 
@@ -22,6 +22,7 @@ The owner develops on **Windows**. Use Task, not make (ADR-0017).
 | `task up` / `task down` | Start / stop Postgres, migrations, API and worker in Docker |
 | `task test` | All tests, including integration tests against real Postgres (needs Docker) |
 | `task test:short` | Unit tests only |
+| `task run:api` / `task run:worker` | Run the API or worker on the host (dev sign-in) against the Compose Postgres |
 | `task lint` | `go vet` + golangci-lint |
 | `task migrate -- status` | Run `fuxi migrate` on the host |
 | `task migrate:new -- name` | New goose migration in `db/migrations/` |
@@ -34,7 +35,7 @@ The local Postgres from Compose is on host port **5433**; the owner has a separa
 
 - **Time is injected.** No business logic calls `time.Now()`; take a `clock.Clock` (`internal/platform/clock`).
 - **Package boundaries.** Packages under `internal/` talk through small interfaces; only the owning package queries its tables.
-- **Every query is scoped to a user.** Repository functions take a `userID`; no unscoped queries. Every endpoint gets a cross-user authorization test (SYSTEM_DESIGN §12.3).
+- **Every query is scoped to a user.** Repository functions take a `userID`; no unscoped queries. Every endpoint gets a cross-user authorization case in `cmd/fuxi/api_test.go` (SYSTEM_DESIGN §12.3); the test fails for a route without one.
 - **Writes are idempotent.** Client-generated UUIDv7 ids; retries are safe.
 - **The review log is append-only.** Never UPDATE or DELETE `review_logs`; card state is derived.
 - **AI output never becomes card data** without a dictionary lookup (ADR-0009). AI tools are read-only except Inbox suggestions (ADR-0008).
@@ -43,7 +44,7 @@ The local Postgres from Compose is on host port **5433**; the owner has a separa
 
 ## Layout
 
-`cmd/fuxi` (the binary) · `internal/platform` (config, clock, db, httpx, logging, migrate, testdb) · `internal/dictionary` (+ `pinyin`, generated `dictdb`) · `db/migrations` (embedded goose SQL) · `db/queries` (sqlc) · `deploy/` (Dockerfile, Compose) · `web/` (PWA, from M3) · `docs/`.
+`cmd/fuxi` (the binary, router wiring, API tests) · `internal/platform` (config, clock, db, httpx, logging, migrate, principal, testdb) · `internal/dictionary` (+ `pinyin`, generated `dictdb`) · `internal/identity` · `internal/study` · `internal/scheduling` · `internal/jobs` (each with a generated `…db` package) · `db/migrations` (embedded goose SQL) · `db/queries` (sqlc) · `deploy/` (Dockerfile, Compose) · `web/` (PWA, from M3) · `docs/`.
 
 Integration tests call `testdb.Start(t, true)` for a migrated throwaway Postgres. Bulk imports use pgx `CopyFrom` into temp staging tables; read queries go through sqlc.
 
