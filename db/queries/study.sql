@@ -60,6 +60,12 @@ RETURNING *;
 -- name: NoteOwner :one
 SELECT user_id FROM notes WHERE id = $1;
 
+-- name: ListNotesByEntry :many
+-- Where a dictionary word already is, across the user's decks.
+SELECT * FROM notes
+WHERE user_id = $1 AND entry_id = $2 AND deleted_hlc IS NULL
+ORDER BY id;
+
 -- name: GetNote :one
 SELECT * FROM notes WHERE id = $1 AND user_id = $2 AND deleted_hlc IS NULL;
 
@@ -131,6 +137,22 @@ WHERE c.id = $1 AND c.user_id = $2 AND c.deleted_hlc IS NULL;
 UPDATE cards SET suspended = sqlc.arg(suspended), field_hlc = field_hlc || sqlc.arg(field_hlc)::jsonb
 WHERE id = sqlc.arg(id) AND user_id = sqlc.arg(user_id) AND deleted_hlc IS NULL;
 
+-- name: SetNewCardsSuspendedForEntry :execrows
+-- "I already know this" (SYSTEM_DESIGN §9.7): suspend, or bring back, the
+-- never-reviewed cards of every note for a dictionary entry.
+WITH changed AS (
+    UPDATE cards c
+    SET suspended = sqlc.arg(suspended), field_hlc = c.field_hlc || sqlc.arg(field_hlc)::jsonb
+    FROM notes n, card_states cs
+    WHERE c.user_id = sqlc.arg(user_id) AND n.id = c.note_id AND n.user_id = sqlc.arg(user_id)
+      AND n.entry_id = sqlc.arg(entry_id) AND n.deleted_hlc IS NULL AND c.deleted_hlc IS NULL
+      AND cs.card_id = c.id AND cs.state = 0 AND c.suspended <> sqlc.arg(suspended)
+    RETURNING c.id
+)
+UPDATE card_states st SET suspended = sqlc.arg(suspended)
+FROM changed
+WHERE st.user_id = sqlc.arg(user_id) AND st.card_id = changed.id;
+
 -- name: SetCardStateSuspended :exec
 UPDATE card_states SET suspended = $3 WHERE card_id = $1 AND user_id = $2;
 
@@ -176,6 +198,7 @@ WHERE user_id = sqlc.arg(user_id) AND NOT suspended AND state <> 0
 
 -- name: ListDue :many
 SELECT cs.card_id, cs.deck_id, cs.state, cs.due_at, cs.reps, cs.lapses,
+       cs.stability, cs.difficulty, cs.remaining_steps, cs.last_review_at, cs.first_review_at,
        c.card_type, n.id AS note_id, n.kind, n.entry_id, n.fields
 FROM card_states cs
 JOIN cards c ON c.id = cs.card_id
@@ -192,6 +215,22 @@ WHERE user_id = sqlc.arg(user_id) AND deleted_hlc IS NULL
   AND (sqlc.narg(deck_id)::uuid IS NULL OR id = sqlc.narg(deck_id))
 ORDER BY created_at, id;
 
+-- name: CountDueByDeck :many
+SELECT deck_id, count(*) AS n FROM card_states
+WHERE user_id = sqlc.arg(user_id) AND NOT suspended AND state <> 0
+  AND due_at < sqlc.arg(day_end)
+GROUP BY deck_id;
+
+-- name: ReviewsPerDay :many
+-- Reviews per study day (SYSTEM_DESIGN §6.4, §6.6): the local date of the
+-- review time moved back by the day-start hour, so 1 am counts for the evening before.
+SELECT ((reviewed_at AT TIME ZONE sqlc.arg(tz)::text) - make_interval(hours => sqlc.arg(day_starts_at)::int))::date AS day,
+       count(*) AS n
+FROM review_logs
+WHERE user_id = sqlc.arg(user_id) AND reviewed_at >= sqlc.arg(since)::timestamptz
+GROUP BY 1
+ORDER BY 1;
+
 -- name: CountIntroduced :many
 -- New cards started today, per deck (first_review_at is set by the first review).
 SELECT deck_id, count(*) AS n FROM card_states
@@ -206,6 +245,7 @@ GROUP BY deck_id;
 -- name: ListNew :many
 -- Oldest notes first; a note's recognition card before its recall card.
 SELECT cs.card_id, cs.deck_id, cs.state, cs.due_at, cs.reps, cs.lapses,
+       cs.stability, cs.difficulty, cs.remaining_steps, cs.last_review_at, cs.first_review_at,
        c.card_type, n.id AS note_id, n.kind, n.entry_id, n.fields
 FROM card_states cs
 JOIN cards c ON c.id = cs.card_id

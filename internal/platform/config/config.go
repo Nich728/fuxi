@@ -20,6 +20,9 @@ type Config struct {
 	ShutdownTimeout time.Duration
 	// Auth configures sign-in for API mode (ADR-0018).
 	Auth Auth
+	// WebDir is the built PWA (web/dist) that API mode serves at /. Empty
+	// means the API serves no client; in development Vite serves it instead.
+	WebDir string
 }
 
 // Auth modes.
@@ -63,6 +66,7 @@ func Load() (Config, error) {
 		HTTPAddr:        getenv("FUXI_HTTP_ADDR", ":8080"),
 		LogLevel:        getenv("FUXI_LOG_LEVEL", "info"),
 		ShutdownTimeout: 15 * time.Second,
+		WebDir:          os.Getenv("FUXI_WEB_DIR"),
 		Auth: Auth{
 			Mode:             getenv("FUXI_AUTH", AuthCloudflare),
 			AccessTeamDomain: os.Getenv("FUXI_ACCESS_TEAM_DOMAIN"),

@@ -160,3 +160,14 @@ type User struct {
 	CreatedAt   time.Time
 	LastSeenAt  time.Time
 }
+
+type WordKnowledge struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	EntryID    int64
+	Status     string
+	Source     string
+	Confidence float32
+	FieldHlc   json.RawMessage
+	UpdatedAt  time.Time
+}

@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -15,6 +17,7 @@ import (
 	"github.com/Nich728/fuxi/internal/dictionary"
 	"github.com/Nich728/fuxi/internal/identity"
 	"github.com/Nich728/fuxi/internal/jobs"
+	"github.com/Nich728/fuxi/internal/learner"
 	"github.com/Nich728/fuxi/internal/platform/clock"
 	"github.com/Nich728/fuxi/internal/platform/config"
 	"github.com/Nich728/fuxi/internal/platform/db"
@@ -39,9 +42,19 @@ func runAPI(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 
+	var web fs.FS
+	if cfg.WebDir != "" {
+		web = os.DirFS(cfg.WebDir)
+		if _, err := fs.Stat(web, "index.html"); err != nil {
+			return fmt.Errorf("FUXI_WEB_DIR %q has no index.html: %w", cfg.WebDir, err)
+		}
+	}
+
 	srv := &http.Server{
-		Addr:              cfg.HTTPAddr,
-		Handler:           newRouter(pool, log, auth, clk, cfg.Auth.OwnerEmail),
+		Addr: cfg.HTTPAddr,
+		Handler: newRouter(routerDeps{
+			pool: pool, log: log, auth: auth, clock: clk, ownerEmail: cfg.Auth.OwnerEmail, web: web,
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -76,12 +89,24 @@ func newAuthenticator(a config.Auth, clk clock.Clock, log *slog.Logger) (identit
 	return identity.NewAccess(a.AccessTeamDomain, a.AccessAudience, clk, nil)
 }
 
+// routerDeps is what the router needs; web may be nil.
+type routerDeps struct {
+	pool       *pgxpool.Pool
+	log        *slog.Logger
+	auth       identity.Authenticator
+	clock      clock.Clock
+	ownerEmail string
+	web        fs.FS // the built PWA, served at / (nil: none)
+}
+
 // newRouter wires every module's routes (SYSTEM_DESIGN §10).
-func newRouter(pool *pgxpool.Pool, log *slog.Logger, auth identity.Authenticator, clk clock.Clock, ownerEmail string) http.Handler {
+func newRouter(d routerDeps) http.Handler {
+	pool, log, clk := d.pool, d.log, d.clock
 	dictSvc := dictionary.NewService(pool)
 	dict := dictionary.NewHandler(dictSvc, log.With("module", "dictionary"))
-	ids := identity.NewService(pool, clk, ownerEmail)
+	ids := identity.NewService(pool, clk, d.ownerEmail)
 	studySvc := study.NewService(pool, clk, studyDictionary{dictSvc}, ids, scheduling.NewStore(pool))
+	learnerSvc := learner.NewService(pool, clk, studySvc)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -99,12 +124,19 @@ func newRouter(pool *pgxpool.Pool, log *slog.Logger, auth identity.Authenticator
 
 		// Everything else belongs to the signed-in user.
 		r.Group(func(r chi.Router) {
-			r.Use(identity.Middleware(auth, ids, log.With("module", "identity")))
+			r.Use(identity.Middleware(d.auth, ids, log.With("module", "identity")))
 			identity.NewHandler(ids, log.With("module", "identity")).Routes(r)
 			study.NewHandler(studySvc, log.With("module", "study")).Routes(r)
 			jobs.NewHTTPHandler(pool, log.With("module", "jobs")).Routes(r)
+			learner.NewHandler(learnerSvc, log.With("module", "learner")).Routes(r)
 		})
 	})
+
+	// The PWA, from the same origin, so one Access application covers both.
+	// /v1 paths never reach it: the /v1 subrouter answers its own 404s.
+	if d.web != nil {
+		r.Handle("/*", httpx.WebApp(d.web))
+	}
 	return r
 }
 

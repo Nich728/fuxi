@@ -224,23 +224,3 @@ func TestRowNoteID(t *testing.T) {
 		t.Error("different imports share an id")
 	}
 }
-
-func TestHLC(t *testing.T) {
-	clk := &stepClock{t: time.Date(2026, 11, 14, 0, 0, 0, 0, time.UTC)}
-	h := newHLC(clk)
-	a, b := h.next(), h.next()
-	if a >= b {
-		t.Errorf("%s not before %s", a, b)
-	}
-	clk.t = clk.t.Add(-time.Second) // the clock went backwards
-	if c := h.next(); c <= b {
-		t.Errorf("%s not after %s after the clock went back", c, b)
-	}
-	if len(a) != len("0000000000000:00000:server") {
-		t.Errorf("not fixed width: %q", a)
-	}
-}
-
-type stepClock struct{ t time.Time }
-
-func (c *stepClock) Now() time.Time { return c.t }

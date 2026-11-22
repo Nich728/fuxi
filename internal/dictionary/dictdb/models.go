@@ -157,3 +157,14 @@ type User struct {
 	CreatedAt   pgtype.Timestamptz
 	LastSeenAt  pgtype.Timestamptz
 }
+
+type WordKnowledge struct {
+	ID         pgtype.UUID
+	UserID     pgtype.UUID
+	EntryID    int64
+	Status     string
+	Source     string
+	Confidence float32
+	FieldHlc   []byte
+	UpdatedAt  pgtype.Timestamptz
+}

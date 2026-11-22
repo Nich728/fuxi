@@ -11,7 +11,7 @@ Fuxi (复习, "to review") is a Mandarin study app: FSRS flashcard reviews, an A
 
 ## Current milestone
 
-M0 Foundations, M1 Content & search and M2 Study core are done. Sign-in is Cloudflare Access (ADR-0018): `internal/identity` verifies the Access JWT and creates users on first sight; locally `FUXI_AUTH=dev` signs requests in as `FUXI_DEV_EMAIL` or the `X-Fuxi-Dev-Email` header. `internal/study` has decks, notes, cards, reviews, the due queue and CSV import; `internal/scheduling` wraps go-fsrs; `internal/jobs` is the Postgres queue. Next is **M3 Daily-usable client** (SYSTEM_DESIGN §14).
+M0 Foundations, M1 Content & search and M2 Study core are done. Sign-in is Cloudflare Access (ADR-0018): `internal/identity` verifies the Access JWT and creates users on first sight; locally `FUXI_AUTH=dev` signs requests in as `FUXI_DEV_EMAIL` or the `X-Fuxi-Dev-Email` header. `internal/study` has decks, notes, cards, reviews, the due queue and CSV import; `internal/scheduling` wraps go-fsrs; `internal/jobs` is the Postgres queue. **M3 Daily-usable client** (SYSTEM_DESIGN §14) is in progress, in three PRs: backend additions (`internal/learner` for "I already know this", rating previews, `/study/summary`, the API serving the PWA from `FUXI_WEB_DIR`), the web client in `web/`, then the first deploy.
 
 ## Commands
 
@@ -44,7 +44,7 @@ The local Postgres from Compose is on host port **5433**; the owner has a separa
 
 ## Layout
 
-`cmd/fuxi` (the binary, router wiring, API tests) · `internal/platform` (config, clock, db, httpx, logging, migrate, principal, testdb) · `internal/dictionary` (+ `pinyin`, generated `dictdb`) · `internal/identity` · `internal/study` · `internal/scheduling` · `internal/jobs` (each with a generated `…db` package) · `db/migrations` (embedded goose SQL) · `db/queries` (sqlc) · `deploy/` (Dockerfile, Compose) · `web/` (PWA, from M3) · `docs/`.
+`cmd/fuxi` (the binary, router wiring, API tests) · `internal/platform` (config, clock, db, hlc, httpx, logging, migrate, principal, testdb) · `internal/dictionary` (+ `pinyin`, generated `dictdb`) · `internal/identity` · `internal/study` · `internal/scheduling` · `internal/jobs` · `internal/learner` (each with a generated `…db` package) · `db/migrations` (embedded goose SQL) · `db/queries` (sqlc) · `deploy/` (Dockerfile, Compose) · `web/` (PWA, from M3) · `docs/`.
 
 Integration tests call `testdb.Start(t, true)` for a migrated throwaway Postgres. Bulk imports use pgx `CopyFrom` into temp staging tables; read queries go through sqlc.
 
