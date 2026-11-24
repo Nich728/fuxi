@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Status** | v1.7, for review |
-| **Last updated** | 14 November 2026 |
+| **Status** | v1.8, for review |
+| **Last updated** | 22 November 2026 |
 | **Companion doc** | [`PRD.md`](./PRD.md) |
 
 This document describes *how* Fuxi is built. The PRD describes *what* it does and *why*. Section numbers here are referenced from code comments and ADRs, so keep them stable when editing.
@@ -62,7 +62,7 @@ flowchart LR
 fuxi/
 ├── cmd/fuxi/              # main.go: api | worker | migrate subcommands
 ├── internal/
-│   ├── platform/          # db pool, config, clock, httpx helpers, logging, otel
+│   ├── platform/          # db pool, config, clock, hlc, httpx helpers, logging, otel
 │   ├── identity/          # users, devices, auth, tokens
 │   ├── dictionary/        # entries, sentences, search, importers
 │   ├── study/             # decks, notes, cards, review submission, due queue
@@ -488,11 +488,16 @@ LIMIT $3;
 ```
 Cards in state new are excluded above. New cards are added up to each deck's `new_per_day` minus new cards already introduced today, counted from `card_states.first_review_at` since the start of the study day; they come oldest note first, recognition before recall.
 
+Each queued card carries `preview`: its due time for each of the four ratings if rated now, computed with the same weights and deck retention as a real review, so the rating buttons can show their intervals without a second FSRS implementation in the client (until M5 brings `ts-fsrs` for offline review).
+
 ### 6.4 Study day
 `day_start = local date at day_starts_at:00 in users.timezone`, converted to UTC per request. Store everything in UTC. Tests cover timezone changes and DST transitions (a study day can be 23 or 25 hours). The binary embeds the time zone database (`time/tzdata`), since the distroless image has none.
 
 ### 6.5 Personalised parameters (worker job `fsrs.tune`)
 Runs nightly for users with at least about 1,000 reviews and at least 200 new ones since the last tune. It fits FSRS weights on the user's log, stores a new `fsrs_params` version, then enqueues `fsrs.rebuild` jobs that recompute `card_states` in batches of 1,000 cards. The FSRS optimiser is most mature in the Python and Rust ecosystems, so this job may shell out to a small Python script. Check what Go offers at implementation time.
+
+### 6.6 Home summary
+`GET /study/summary` returns, for the current study day, the due and remaining new counts per deck (the same rules as §6.3), and reviews per study day for the last 7 days, oldest first. Each review is assigned the local date of `reviewed_at` moved back by `day_starts_at` hours, so a review at 1 am counts for the evening before. A day with at least one review earns its seal on the home screen.
 
 ## 7. Offline-first sync
 
@@ -758,7 +763,7 @@ Callers: tutor tools (`check_known_words`, `get_learner_profile`), extraction (�
 The check is a starting estimate. These rules correct it, in both directions, as real evidence arrives:
 
 - **On review:** if a word marked known by the check gets rated **Again**, its `word_knowledge` row flips to learning inside the same review transaction (PRD FR-V-7).
-- **On "I already know this":** writes a `word_knowledge` row with `source = manual` and suspends any not-yet-reviewed card for that word. Offline, both changes go into the outbox together and are pushed in one batch. This is the main way an underestimated learner corrects upwards: every too-easy suggestion they dismiss raises their level.
+- **On "I already know this":** writes a `word_knowledge` row with `source = manual` and suspends any not-yet-reviewed card for that word, in one transaction (`internal/learner` asks `internal/study` to suspend the cards inside its transaction). Undoing it deletes the row and brings those cards back; a never-reviewed card the user had suspended by hand comes back too, since the reason for a suspension isn't recorded. Offline, both changes go into the outbox together and are pushed in one batch. This is the main way an underestimated learner corrects upwards: every too-easy suggestion they dismiss raises their level.
 - **Nightly job `learner.recompute`** (also run right after a check completes) re-scores every band. The check's result acts as a prior worth as many observations as the check actually showed in that band, between 5 and 20, so it fades as real evidence builds up:
 
   `k_b = (n_b × observed_b + w_b × placement_b) / (n_b + w_b)`
@@ -776,7 +781,9 @@ The check is a starting estimate. These rules correct it, in both directions, as
 | `POST /v1/placement/sessions/{id}/apply {mode}` | `mark_known` or `verify_later` |
 | `GET /v1/learner/profile` | Level, per-band estimates, vocabulary estimate |
 | `PUT /v1/learner/profile/level {band}` | Set the level by hand (skip the check) |
-| `PUT /v1/knowledge/{entry_id} {status}` | "I already know this" (also available as a sync op) |
+| `PUT /v1/knowledge/{entry_id} {status}` | "I already know this" (also available as a sync op). M3 accepts `known` only |
+| `DELETE /v1/knowledge/{entry_id}` | Undo "I already know this" |
+| `GET /v1/knowledge?entry_ids=` | The user's rows for up to 200 entries (M3; `Knowledge()` arrives in M4) |
 
 A screen sent to the client contains only slot numbers and the text to show; a meaning question contains only its text and four options. Neither reveals whether an item is a pseudo-word, or which option is correct. The server keeps the key.
 
@@ -817,13 +824,14 @@ Base path `/v1`. JSON; errors use RFC 9457 `application/problem+json`. Cursor pa
 | Account | `GET /me` · `PATCH /me/settings` (explanation language, tone colours, timezone, day start) · `GET /devices` · `PUT /devices/{id}` · `DELETE /devices/{id}` |
 | Dictionary | `GET /dict/search?q=` · `GET /dict/entries/{id}` |
 | Decks | `GET /decks` · `POST /decks` · `GET /decks/{id}` · `PATCH /decks/{id}` · `DELETE /decks/{id}` |
-| Notes and cards | `GET /decks/{id}/notes?after=` · `POST /decks/{id}/notes` · `GET /notes/{id}` · `PATCH /notes/{id}` · `DELETE /notes/{id}` · `PATCH /cards/{id} {suspended}` |
+| Notes and cards | `GET /decks/{id}/notes?after=` · `POST /decks/{id}/notes` · `GET /notes?entry_id=` · `GET /notes/{id}` · `PATCH /notes/{id}` · `DELETE /notes/{id}` · `PATCH /cards/{id} {suspended}` |
 | Imports | `POST /decks/{id}/import?import_id=` (body: the CSV) → `202 {job_id}` · `GET /jobs/{id}` |
-| Study | `GET /study/queue?deck=` · `POST /reviews` |
+| Study | `GET /study/queue?deck=` (cards carry rating previews, §6.3) · `GET /study/summary` (§6.6) · `POST /reviews` |
 | Inbox | `GET /inbox` · `POST /inbox/{id}/accept {deck_id}` · `POST /inbox/{id}/dismiss` · `POST /inbox/accept-all {deck_id}` |
 | Tutor | `POST /tutor/conversations` · `GET /tutor/conversations` · `GET /tutor/conversations/{id}` · `POST /tutor/conversations/{id}/messages` (SSE) · `POST /tutor/extract` |
 | Sync | `POST /sync/push` · `GET /sync/pull?since=` · `GET /sync/snapshot` |
-| Placement & level | See §9.8 |
+| Placement & level | See §9.8; `word_knowledge` endpoints from M3 |
+| Web client | Everything outside `/v1`, `/healthz` and `/readyz` is the PWA, served by API mode from `FUXI_WEB_DIR` on the same origin, so one Access application covers app and API. Hashed assets are cached for a year; `index.html`, the service worker and the manifest are revalidated on every load |
 | Stats | `GET /stats/summary` · `GET /stats/forecast?days=30` |
 | Ops | `GET /healthz` · `GET /readyz` · `GET /metrics` (internal) |
 

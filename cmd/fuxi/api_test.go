@@ -43,7 +43,7 @@ func newTestAPI(t *testing.T) *testAPI {
 	clk := clock.NewFake(time.Date(2026, 11, 14, 2, 0, 0, 0, time.UTC))
 	log := slog.New(slog.NewTextHandler(testWriter{t}, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	return &testAPI{t: t, pool: pool, clock: clk, log: log,
-		router: newRouter(pool, log, identity.Dev{}, clk, "owner@example.com")}
+		router: newRouter(routerDeps{pool: pool, log: log, auth: identity.Dev{}, clock: clk, ownerEmail: "owner@example.com"})}
 }
 
 // testWriter sends server logs to the test's output, shown when it fails.
@@ -380,7 +380,8 @@ var publicRoutes = map[string]bool{
 func TestAuthorization(t *testing.T) {
 	a := newTestAPI(t)
 	const alice, bob = "alice@example.com", "bob@example.com"
-	a.addEntry("词典", "ci2 dian3", "cídiǎn", "dictionary")
+	cidian := a.addEntry("词典", "ci2 dian3", "cídiǎn", "dictionary")
+	mao := a.addEntry("猫", "mao1", "māo", "cat")
 
 	// Alice's data.
 	aliceMe := a.must(200, alice, "GET", "/v1/me", nil)
@@ -396,6 +397,10 @@ func TestAuthorization(t *testing.T) {
 		"id": aReview, "card_id": aCard, "rating": 3, "device_id": aDevice, "reviewed_at": a.clock.Now().Format(time.RFC3339),
 	})
 	aJob := int64(a.must(202, alice, "POST", "/v1/decks/"+aDeck+"/import?import_id="+newID(), "你好,nǐhǎo,hello\n")["job_id"].(float64))
+	// A dictionary note (cards never reviewed), and a word she marked known.
+	aDictNote := newID()
+	a.must(200, alice, "POST", "/v1/decks/"+aDeck+"/notes", map[string]any{"id": aDictNote, "entry_id": cidian, "fields": map[string]any{"notes": "alice secret"}})
+	a.must(200, alice, "PUT", "/v1/knowledge/"+itoa(mao), map[string]any{"status": "known"})
 
 	// Bob has his own device and deck, so failures can't be blamed on missing data.
 	bDevice, bDeck := newID(), newID()
@@ -406,7 +411,7 @@ func TestAuthorization(t *testing.T) {
 	}), "cards")[0]["id"].(string)
 
 	// Strings that must never appear in a response to Bob.
-	secrets := []string{alice, aliceMe["id"].(string), aDevice, aDeck, aNote, aCard, aReview, "alice secret", "Alice deck", "Alice phone"}
+	secrets := []string{alice, aliceMe["id"].(string), aDevice, aDeck, aNote, aDictNote, aCard, aReview, "alice secret", "Alice deck", "Alice phone"}
 
 	type attempt struct {
 		method, path string
@@ -431,6 +436,7 @@ func TestAuthorization(t *testing.T) {
 			{"POST", "/v1/decks/" + bDeck + "/notes", map[string]any{"id": aNote, "fields": map[string]any{"hanzi": "x", "meaning": "y"}}, 409},
 		},
 		"POST /v1/decks/{id}/import": {{"POST", "/v1/decks/" + aDeck + "/import?import_id=" + newID(), "猫,māo,cat\n", 404}},
+		"GET /v1/notes":              {{"GET", "/v1/notes?entry_id=" + itoa(cidian), nil, 200}},
 		"GET /v1/notes/{id}":         {{"GET", "/v1/notes/" + aNote, nil, 404}},
 		"PATCH /v1/notes/{id}":       {{"PATCH", "/v1/notes/" + aNote, map[string]any{"fields": map[string]any{"meaning": "hacked"}}, 404}},
 		"DELETE /v1/notes/{id}":      {{"DELETE", "/v1/notes/" + aNote, nil, 404}},
@@ -446,7 +452,13 @@ func TestAuthorization(t *testing.T) {
 			// Reusing Alice's review id on Bob's own card is a clash.
 			{"POST", "/v1/reviews", map[string]any{"id": aReview, "card_id": bCard, "rating": 1, "device_id": bDevice, "reviewed_at": a.clock.Now().Format(time.RFC3339)}, 409},
 		},
-		"GET /v1/jobs/{id}": {{"GET", fmt.Sprintf("/v1/jobs/%d", aJob), nil, 404}},
+		"GET /v1/study/summary": {{"GET", "/v1/study/summary", nil, 200}},
+		"GET /v1/jobs/{id}":     {{"GET", fmt.Sprintf("/v1/jobs/%d", aJob), nil, 404}},
+		"GET /v1/knowledge":     {{"GET", "/v1/knowledge?entry_ids=" + itoa(cidian) + "," + itoa(mao), nil, 200}},
+		// Bob marking a word only writes his own row: Alice's cards for it stay as they were.
+		"PUT /v1/knowledge/{id}": {{"PUT", "/v1/knowledge/" + itoa(cidian), map[string]any{"status": "known"}, 200}},
+		// Alice knows 猫; Bob doesn't, so there is nothing of his to remove.
+		"DELETE /v1/knowledge/{id}": {{"DELETE", "/v1/knowledge/" + itoa(mao), nil, 404}},
 	}
 
 	// Route registry check: every user-owned route has a case.
@@ -501,5 +513,13 @@ func TestAuthorization(t *testing.T) {
 	_ = a.pool.QueryRow(context.Background(), `SELECT count(*) FROM review_logs`).Scan(&logs)
 	if logs != 1 {
 		t.Errorf("review_logs = %d, want only Alice's 1", logs)
+	}
+	for _, c := range list(a.must(200, alice, "GET", "/v1/notes/"+aDictNote, nil), "cards") {
+		if c["suspended"] != false {
+			t.Errorf("Bob's \"I already know this\" suspended Alice's card: %v", c)
+		}
+	}
+	if ks := list(a.must(200, alice, "GET", "/v1/knowledge?entry_ids="+itoa(cidian)+","+itoa(mao), nil), "knowledge"); len(ks) != 1 || ks[0]["entry_id"] != float64(mao) {
+		t.Errorf("Alice's knowledge = %v", ks)
 	}
 }

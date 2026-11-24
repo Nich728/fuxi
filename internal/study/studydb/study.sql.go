@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countDue = `-- name: CountDue :one
@@ -33,6 +34,43 @@ func (q *Queries) CountDue(ctx context.Context, arg CountDueParams) (int64, erro
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countDueByDeck = `-- name: CountDueByDeck :many
+SELECT deck_id, count(*) AS n FROM card_states
+WHERE user_id = $1 AND NOT suspended AND state <> 0
+  AND due_at < $2
+GROUP BY deck_id
+`
+
+type CountDueByDeckParams struct {
+	UserID uuid.UUID
+	DayEnd time.Time
+}
+
+type CountDueByDeckRow struct {
+	DeckID uuid.UUID
+	N      int64
+}
+
+func (q *Queries) CountDueByDeck(ctx context.Context, arg CountDueByDeckParams) ([]CountDueByDeckRow, error) {
+	rows, err := q.db.Query(ctx, countDueByDeck, arg.UserID, arg.DayEnd)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountDueByDeckRow{}
+	for rows.Next() {
+		var i CountDueByDeckRow
+		if err := rows.Scan(&i.DeckID, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const countIntroduced = `-- name: CountIntroduced :many
@@ -661,6 +699,7 @@ func (q *Queries) ListDecks(ctx context.Context, userID uuid.UUID) ([]ListDecksR
 
 const listDue = `-- name: ListDue :many
 SELECT cs.card_id, cs.deck_id, cs.state, cs.due_at, cs.reps, cs.lapses,
+       cs.stability, cs.difficulty, cs.remaining_steps, cs.last_review_at, cs.first_review_at,
        c.card_type, n.id AS note_id, n.kind, n.entry_id, n.fields
 FROM card_states cs
 JOIN cards c ON c.id = cs.card_id
@@ -680,17 +719,22 @@ type ListDueParams struct {
 }
 
 type ListDueRow struct {
-	CardID   uuid.UUID
-	DeckID   uuid.UUID
-	State    int16
-	DueAt    time.Time
-	Reps     int32
-	Lapses   int32
-	CardType string
-	NoteID   uuid.UUID
-	Kind     string
-	EntryID  *int64
-	Fields   json.RawMessage
+	CardID         uuid.UUID
+	DeckID         uuid.UUID
+	State          int16
+	DueAt          time.Time
+	Reps           int32
+	Lapses         int32
+	Stability      float64
+	Difficulty     float64
+	RemainingSteps int32
+	LastReviewAt   *time.Time
+	FirstReviewAt  *time.Time
+	CardType       string
+	NoteID         uuid.UUID
+	Kind           string
+	EntryID        *int64
+	Fields         json.RawMessage
 }
 
 func (q *Queries) ListDue(ctx context.Context, arg ListDueParams) ([]ListDueRow, error) {
@@ -714,6 +758,11 @@ func (q *Queries) ListDue(ctx context.Context, arg ListDueParams) ([]ListDueRow,
 			&i.DueAt,
 			&i.Reps,
 			&i.Lapses,
+			&i.Stability,
+			&i.Difficulty,
+			&i.RemainingSteps,
+			&i.LastReviewAt,
+			&i.FirstReviewAt,
 			&i.CardType,
 			&i.NoteID,
 			&i.Kind,
@@ -732,6 +781,7 @@ func (q *Queries) ListDue(ctx context.Context, arg ListDueParams) ([]ListDueRow,
 
 const listNew = `-- name: ListNew :many
 SELECT cs.card_id, cs.deck_id, cs.state, cs.due_at, cs.reps, cs.lapses,
+       cs.stability, cs.difficulty, cs.remaining_steps, cs.last_review_at, cs.first_review_at,
        c.card_type, n.id AS note_id, n.kind, n.entry_id, n.fields
 FROM card_states cs
 JOIN cards c ON c.id = cs.card_id
@@ -750,17 +800,22 @@ type ListNewParams struct {
 }
 
 type ListNewRow struct {
-	CardID   uuid.UUID
-	DeckID   uuid.UUID
-	State    int16
-	DueAt    time.Time
-	Reps     int32
-	Lapses   int32
-	CardType string
-	NoteID   uuid.UUID
-	Kind     string
-	EntryID  *int64
-	Fields   json.RawMessage
+	CardID         uuid.UUID
+	DeckID         uuid.UUID
+	State          int16
+	DueAt          time.Time
+	Reps           int32
+	Lapses         int32
+	Stability      float64
+	Difficulty     float64
+	RemainingSteps int32
+	LastReviewAt   *time.Time
+	FirstReviewAt  *time.Time
+	CardType       string
+	NoteID         uuid.UUID
+	Kind           string
+	EntryID        *int64
+	Fields         json.RawMessage
 }
 
 // Oldest notes first; a note's recognition card before its recall card.
@@ -780,6 +835,11 @@ func (q *Queries) ListNew(ctx context.Context, arg ListNewParams) ([]ListNewRow,
 			&i.DueAt,
 			&i.Reps,
 			&i.Lapses,
+			&i.Stability,
+			&i.Difficulty,
+			&i.RemainingSteps,
+			&i.LastReviewAt,
+			&i.FirstReviewAt,
 			&i.CardType,
 			&i.NoteID,
 			&i.Kind,
@@ -902,6 +962,50 @@ func (q *Queries) ListNotes(ctx context.Context, arg ListNotesParams) ([]Note, e
 	return items, nil
 }
 
+const listNotesByEntry = `-- name: ListNotesByEntry :many
+SELECT id, user_id, deck_id, entry_id, kind, fields, tags, origin, field_hlc, deleted_hlc, created_at FROM notes
+WHERE user_id = $1 AND entry_id = $2 AND deleted_hlc IS NULL
+ORDER BY id
+`
+
+type ListNotesByEntryParams struct {
+	UserID  uuid.UUID
+	EntryID *int64
+}
+
+// Where a dictionary word already is, across the user's decks.
+func (q *Queries) ListNotesByEntry(ctx context.Context, arg ListNotesByEntryParams) ([]Note, error) {
+	rows, err := q.db.Query(ctx, listNotesByEntry, arg.UserID, arg.EntryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Note{}
+	for rows.Next() {
+		var i Note
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.DeckID,
+			&i.EntryID,
+			&i.Kind,
+			&i.Fields,
+			&i.Tags,
+			&i.Origin,
+			&i.FieldHlc,
+			&i.DeletedHlc,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listQueueDecks = `-- name: ListQueueDecks :many
 SELECT id, settings FROM decks
 WHERE user_id = $1 AND deleted_hlc IS NULL
@@ -981,6 +1085,54 @@ func (q *Queries) NoteOwner(ctx context.Context, id uuid.UUID) (uuid.UUID, error
 	return user_id, err
 }
 
+const reviewsPerDay = `-- name: ReviewsPerDay :many
+SELECT ((reviewed_at AT TIME ZONE $1::text) - make_interval(hours => $2::int))::date AS day,
+       count(*) AS n
+FROM review_logs
+WHERE user_id = $3 AND reviewed_at >= $4::timestamptz
+GROUP BY 1
+ORDER BY 1
+`
+
+type ReviewsPerDayParams struct {
+	Tz          string
+	DayStartsAt int32
+	UserID      uuid.UUID
+	Since       time.Time
+}
+
+type ReviewsPerDayRow struct {
+	Day pgtype.Date
+	N   int64
+}
+
+// Reviews per study day (SYSTEM_DESIGN §6.4, §6.6): the local date of the
+// review time moved back by the day-start hour, so 1 am counts for the evening before.
+func (q *Queries) ReviewsPerDay(ctx context.Context, arg ReviewsPerDayParams) ([]ReviewsPerDayRow, error) {
+	rows, err := q.db.Query(ctx, reviewsPerDay,
+		arg.Tz,
+		arg.DayStartsAt,
+		arg.UserID,
+		arg.Since,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReviewsPerDayRow{}
+	for rows.Next() {
+		var i ReviewsPerDayRow
+		if err := rows.Scan(&i.Day, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setCardStateSuspended = `-- name: SetCardStateSuspended :exec
 UPDATE card_states SET suspended = $3 WHERE card_id = $1 AND user_id = $2
 `
@@ -1014,6 +1166,43 @@ func (q *Queries) SetCardSuspended(ctx context.Context, arg SetCardSuspendedPara
 		arg.FieldHlc,
 		arg.ID,
 		arg.UserID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setNewCardsSuspendedForEntry = `-- name: SetNewCardsSuspendedForEntry :execrows
+WITH changed AS (
+    UPDATE cards c
+    SET suspended = $1, field_hlc = c.field_hlc || $3::jsonb
+    FROM notes n, card_states cs
+    WHERE c.user_id = $2 AND n.id = c.note_id AND n.user_id = $2
+      AND n.entry_id = $4 AND n.deleted_hlc IS NULL AND c.deleted_hlc IS NULL
+      AND cs.card_id = c.id AND cs.state = 0 AND c.suspended <> $1
+    RETURNING c.id
+)
+UPDATE card_states st SET suspended = $1
+FROM changed
+WHERE st.user_id = $2 AND st.card_id = changed.id
+`
+
+type SetNewCardsSuspendedForEntryParams struct {
+	Suspended bool
+	UserID    uuid.UUID
+	FieldHlc  json.RawMessage
+	EntryID   *int64
+}
+
+// "I already know this" (SYSTEM_DESIGN §9.7): suspend, or bring back, the
+// never-reviewed cards of every note for a dictionary entry.
+func (q *Queries) SetNewCardsSuspendedForEntry(ctx context.Context, arg SetNewCardsSuspendedForEntryParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setNewCardsSuspendedForEntry,
+		arg.Suspended,
+		arg.UserID,
+		arg.FieldHlc,
+		arg.EntryID,
 	)
 	if err != nil {
 		return 0, err

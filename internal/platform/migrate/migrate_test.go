@@ -23,7 +23,7 @@ func TestUpDownUp(t *testing.T) {
 	}
 	assertExtension(t, pool, "pg_trgm", true)
 	assertExtension(t, pool, "citext", true)
-	for _, table := range m2Tables {
+	for _, table := range migratedTables {
 		assertTable(t, pool, table, true)
 	}
 
@@ -44,20 +44,20 @@ func TestUpDownUp(t *testing.T) {
 		}
 	}
 	assertExtension(t, pool, "pg_trgm", false)
-	for _, table := range m2Tables {
+	for _, table := range migratedTables {
 		assertTable(t, pool, table, false)
 	}
 	if err := migrate.Up(ctx, pool, &out); err != nil {
 		t.Fatalf("up after down: %v", err)
 	}
 	assertExtension(t, pool, "pg_trgm", true)
-	for _, table := range m2Tables {
+	for _, table := range migratedTables {
 		assertTable(t, pool, table, true)
 	}
 }
 
-// m2Tables are tables from each migration so far, so every Down is exercised.
-var m2Tables = []string{"dict_entries", "users", "devices", "decks", "notes", "cards", "review_logs", "card_states", "fsrs_params", "jobs"}
+// migratedTables are tables from each migration so far, so every Down is exercised.
+var migratedTables = []string{"dict_entries", "users", "devices", "decks", "notes", "cards", "review_logs", "card_states", "fsrs_params", "jobs", "word_knowledge"}
 
 func assertTable(t *testing.T, pool *pgxpool.Pool, name string, want bool) {
 	t.Helper()

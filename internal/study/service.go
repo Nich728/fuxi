@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Nich728/fuxi/internal/platform/clock"
+	"github.com/Nich728/fuxi/internal/platform/hlc"
 	"github.com/Nich728/fuxi/internal/study/studydb"
 )
 
@@ -23,7 +24,7 @@ type Service struct {
 	pool    *pgxpool.Pool
 	q       *studydb.Queries
 	clock   clock.Clock
-	hlc     *hlc
+	hlc     *hlc.Clock
 	dict    Dictionary
 	devices Devices
 	params  ParamsSource
@@ -32,7 +33,7 @@ type Service struct {
 // NewService returns a Service.
 func NewService(pool *pgxpool.Pool, clk clock.Clock, dict Dictionary, devices Devices, params ParamsSource) *Service {
 	return &Service{
-		pool: pool, q: studydb.New(pool), clock: clk, hlc: newHLC(clk),
+		pool: pool, q: studydb.New(pool), clock: clk, hlc: hlc.New(clk),
 		dict: dict, devices: devices, params: params,
 	}
 }
@@ -63,7 +64,7 @@ func (s *Service) CreateDeck(ctx context.Context, userID, id uuid.UUID, name str
 	}
 	row, err := s.q.InsertDeck(ctx, studydb.InsertDeckParams{
 		ID: id, UserID: userID, Name: name, Settings: sb,
-		FieldHlc: s.hlc.stamp("name", "settings"), CreatedAt: s.clock.Now(),
+		FieldHlc: s.hlc.Stamp("name", "settings"), CreatedAt: s.clock.Now(),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return s.existingDeck(ctx, userID, id)
@@ -149,7 +150,7 @@ func (s *Service) UpdateDeck(ctx context.Context, userID, id uuid.UUID, name *st
 	if len(changed) == 0 {
 		return cur, nil
 	}
-	p.FieldHlc = s.hlc.stamp(changed...)
+	p.FieldHlc = s.hlc.Stamp(changed...)
 	row, err := s.q.UpdateDeck(ctx, p)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Deck{}, ErrNotFound
@@ -163,7 +164,7 @@ func (s *Service) UpdateDeck(ctx context.Context, userID, id uuid.UUID, name *st
 // DeleteDeck deletes a deck with its notes and cards. The review log is
 // kept (ADR-0003); deleted rows stay as tombstones for sync (ADR-0006).
 func (s *Service) DeleteDeck(ctx context.Context, userID, id uuid.UUID) error {
-	h := s.hlc.next()
+	h := s.hlc.Next()
 	return s.inTx(ctx, func(q *studydb.Queries, _ pgx.Tx) error {
 		n, err := q.DeleteDeck(ctx, studydb.DeleteDeckParams{ID: id, UserID: userID, Hlc: &h})
 		if err != nil {
@@ -301,7 +302,7 @@ func (s *Service) insertNote(ctx context.Context, q *studydb.Queries, userID uui
 	stamped := []string{"fields.hanzi", "fields.pinyin", "fields.meaning", "fields.sentence", "fields.cloze", "fields.notes", "tags"}
 	row, err := q.InsertNote(ctx, studydb.InsertNoteParams{
 		ID: n.ID, UserID: userID, DeckID: deck.ID, EntryID: n.EntryID, Kind: n.Kind,
-		Fields: fb, Tags: n.Tags, Origin: n.Origin, FieldHlc: s.hlc.stamp(stamped...), CreatedAt: now,
+		Fields: fb, Tags: n.Tags, Origin: n.Origin, FieldHlc: s.hlc.Stamp(stamped...), CreatedAt: now,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -442,7 +443,7 @@ func (s *Service) UpdateNote(ctx context.Context, userID, id uuid.UUID, p NotePa
 		return Note{}, err
 	}
 	_, err = s.q.UpdateNote(ctx, studydb.UpdateNoteParams{
-		ID: id, UserID: userID, Fields: fb, Tags: tags, FieldHlc: s.hlc.stamp(changed...),
+		ID: id, UserID: userID, Fields: fb, Tags: tags, FieldHlc: s.hlc.Stamp(changed...),
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Note{}, ErrNotFound
@@ -455,7 +456,7 @@ func (s *Service) UpdateNote(ctx context.Context, userID, id uuid.UUID, p NotePa
 
 // DeleteNote deletes a note and its cards; their reviews are kept.
 func (s *Service) DeleteNote(ctx context.Context, userID, id uuid.UUID) error {
-	h := s.hlc.next()
+	h := s.hlc.Next()
 	return s.inTx(ctx, func(q *studydb.Queries, _ pgx.Tx) error {
 		n, err := q.DeleteNote(ctx, studydb.DeleteNoteParams{ID: id, UserID: userID, Hlc: &h})
 		if err != nil {
@@ -489,7 +490,7 @@ func toNote(r studydb.Note) Note {
 func (s *Service) SetSuspended(ctx context.Context, userID, cardID uuid.UUID, suspended bool) error {
 	return s.inTx(ctx, func(q *studydb.Queries, _ pgx.Tx) error {
 		n, err := q.SetCardSuspended(ctx, studydb.SetCardSuspendedParams{
-			ID: cardID, UserID: userID, Suspended: suspended, FieldHlc: s.hlc.stamp("suspended"),
+			ID: cardID, UserID: userID, Suspended: suspended, FieldHlc: s.hlc.Stamp("suspended"),
 		})
 		if err != nil {
 			return fmt.Errorf("suspend card: %w", err)

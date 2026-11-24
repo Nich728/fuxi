@@ -89,3 +89,13 @@ sql:
         sql_package: pgx/v5
         emit_empty_slices: true
         overrides: *overrides
+  - engine: postgresql
+    schema: db/migrations
+    queries: db/queries/learner.sql
+    gen:
+      go:
+        package: learnerdb
+        out: internal/learner/learnerdb
+        sql_package: pgx/v5
+        emit_empty_slices: true
+        overrides: *overrides

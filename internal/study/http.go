@@ -36,11 +36,13 @@ func (h *Handler) Routes(r chi.Router) {
 	r.Get("/decks/{id}/notes", h.listNotes)
 	r.Post("/decks/{id}/notes", h.createNote)
 	r.Post("/decks/{id}/import", h.importCSV)
+	r.Get("/notes", h.notesForEntry)
 	r.Get("/notes/{id}", h.getNote)
 	r.Patch("/notes/{id}", h.updateNote)
 	r.Delete("/notes/{id}", h.deleteNote)
 	r.Patch("/cards/{id}", h.updateCard)
 	r.Get("/study/queue", h.queue)
+	r.Get("/study/summary", h.summary)
 	r.Post("/reviews", h.submitReview)
 }
 
@@ -308,6 +310,33 @@ func (h *Handler) queue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.WriteJSON(w, http.StatusOK, q)
+}
+
+// summary: GET /study/summary → today's counts per deck and the last week's reviews.
+func (h *Handler) summary(w http.ResponseWriter, r *http.Request) {
+	p, _ := principal.From(r.Context())
+	sum, err := h.svc.Summary(r.Context(), p)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, sum)
+}
+
+// notesForEntry: GET /notes?entry_id=123 → the user's notes for a dictionary word.
+func (h *Handler) notesForEntry(w http.ResponseWriter, r *http.Request) {
+	p, _ := principal.From(r.Context())
+	entryID, err := strconv.ParseInt(r.URL.Query().Get("entry_id"), 10, 64)
+	if err != nil || entryID < 1 {
+		httpx.WriteProblem(w, http.StatusBadRequest, "entry_id is required")
+		return
+	}
+	notes, err := h.svc.NotesForEntry(r.Context(), p.UserID, entryID)
+	if err != nil {
+		h.fail(w, r, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{"notes": notes})
 }
 
 // submitReview: POST /reviews {"id", "card_id", "rating", "reviewed_at", "duration_ms", "device_id"}
