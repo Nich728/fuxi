@@ -1,0 +1,146 @@
+.word-head {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 4px 0 20px;
+  text-align: center;
+}
+
+.word-hanzi {
+  font-size: 64px;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.word-trad {
+  font-size: 17px;
+  font-weight: 400;
+}
+
+.word-pinyin {
+  font-size: 22px;
+}
+
+.word-hsk {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.definitions {
+  margin: 0;
+  padding: 0 0 0 1.4em;
+  font-size: 17px;
+  line-height: 1.45;
+}
+
+.definitions li + li {
+  margin-top: 4px;
+}
+
+.definitions li::marker {
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.word-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.known-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  padding-left: 4px;
+}
+
+.known-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--jade);
+  font-weight: 500;
+}
+
+.in-decks {
+  margin-top: 12px;
+  text-align: center;
+}
+
+.examples {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.examples li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.examples li:first-child {
+  border-top: 1px solid var(--rule);
+}
+
+.example-line {
+  font-size: 19px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.credit {
+  margin-top: 12px;
+  font-size: 12px;
+}
+
+/* Deck sheet */
+.deck-choices {
+  display: grid;
+  gap: 0;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.deck-choice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 56px;
+  padding: 8px 2px;
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+}
+
+.deck-choice.is-disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.deck-choice input[type='radio'] {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--jade);
+}
+
+.deck-choice .row-title,
+.deck-choice .row-sub {
+  display: block;
+}
+
+.new-deck-name {
+  margin-top: 12px;
+}
+
+.deck-choices + .form-error {
+  margin: -4px 0 12px;
+}
+
+.sheet-foot {
+  margin-top: 12px;
+  text-align: center;
+}

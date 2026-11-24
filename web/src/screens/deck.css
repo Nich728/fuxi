@@ -1,0 +1,109 @@
+.deck-head {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+
+.deck-head h1 {
+  font-size: 28px;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.deck-idle {
+  padding: 12px 0 0;
+}
+
+.note-row {
+  gap: 14px;
+}
+
+.note-hanzi {
+  flex: none;
+  min-width: 2em;
+  font-size: 24px;
+}
+
+.note-pinyin {
+  display: block;
+  font-size: 14px;
+}
+
+.settings-list {
+  border-top: 1px solid var(--rule);
+}
+
+.setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 64px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.setting-help {
+  display: block;
+}
+
+.setting-input {
+  width: 96px;
+  flex: none;
+  text-align: right;
+}
+
+select.setting-input {
+  width: auto;
+  min-width: 96px;
+  max-width: 52%;
+  padding-right: 8px;
+  text-align: left;
+}
+
+.deck-manage {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.import-btn {
+  margin-top: 12px;
+  cursor: pointer;
+}
+
+.import-btn.is-busy {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+#csv-file:focus-visible + .import-btn {
+  outline: 2px solid var(--jade);
+  outline-offset: 2px;
+}
+
+.import-result {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--rule);
+  background: var(--silk);
+}
+
+.import-errors {
+  margin: 8px 0 0;
+  padding-left: 1.2em;
+}
+
+.note-detail {
+  display: grid;
+  gap: 4px;
+}
+
+.note-detail-pinyin {
+  font-size: 19px;
+}
+
+.note-delete {
+  margin-top: 16px;
+}

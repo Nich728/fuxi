@@ -1,0 +1,11 @@
+# Keep the Docker build context small: only what the image needs.
+.git
+.data
+.claude
+.interface-design
+bin
+docs
+*.zip
+web/node_modules
+web/dist
+**/*_test.go

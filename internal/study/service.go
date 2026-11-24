@@ -100,7 +100,11 @@ func (s *Service) Deck(ctx context.Context, userID, id uuid.UUID) (Deck, error) 
 	if err != nil {
 		return Deck{}, fmt.Errorf("load deck: %w", err)
 	}
-	return toDeck(row.ID, row.Name, row.Settings, 0, row.CreatedAt)
+	notes, err := s.q.CountDeckNotes(ctx, studydb.CountDeckNotesParams{DeckID: id, UserID: userID})
+	if err != nil {
+		return Deck{}, fmt.Errorf("count notes: %w", err)
+	}
+	return toDeck(row.ID, row.Name, row.Settings, notes, row.CreatedAt)
 }
 
 // Decks lists the user's live decks.
@@ -158,7 +162,7 @@ func (s *Service) UpdateDeck(ctx context.Context, userID, id uuid.UUID, name *st
 	if err != nil {
 		return Deck{}, fmt.Errorf("update deck: %w", err)
 	}
-	return toDeck(row.ID, row.Name, row.Settings, 0, row.CreatedAt)
+	return toDeck(row.ID, row.Name, row.Settings, cur.NoteCount, row.CreatedAt)
 }
 
 // DeleteDeck deletes a deck with its notes and cards. The review log is

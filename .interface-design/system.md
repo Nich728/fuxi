@@ -24,10 +24,13 @@ Tokens are named for materials. Light and dark are separate palettes, each check
 | `--on-jade` | `#F7F1E3` | `#141B17` | Text on jade |
 | `--gold` | `#7E6231` | `#C9A86A` | Small metadata (HSK level, deck name on a card) |
 | `--cinnabar` | `#A63A2B` | `#C8553F` | Seals and the Again rating only |
+| `--jade-pressed` | `#275A42` | `#7AAF8F` | Pressed state of the jade button |
+| `--well` | `#F1E9D6` | `#18201C` | Inset fill of inputs and the search bar |
+| `--tone-1` … `--tone-4` | `#A63A2B` `#8A6A1F` `#2F6B4F` `#3D5A8A` | `#E07A63` `#D4B062` `#8FC2A3` `#8FB0E0` | Tone colours (Settings, off by default) |
 
 Rules:
 - One filled jade button per screen.
-- Cinnabar is never a general error or warning colour. It means a seal (a finished day) or Again.
+- Cinnabar is never a general error or warning colour. It means a seal (a finished day) or Again. Destructive confirms (delete) are ink-filled instead.
 - Tone colours (Settings, optional) must be designed against this palette in both modes, and tone marks always stay visible.
 - No gradients, no glass, no glow.
 
@@ -57,8 +60,18 @@ Rules:
 - Home: header (复习 wordmark, level pill) → tutor prompt bar → next-card stack and Start review → seal week → decks as divided rows (not cards) → bottom tab bar (Home, Decks, Search, Progress).
 - Review: close, thin progress bar, count → card (deck and HSK level, hanzi, then pinyin and meaning once revealed, example sentence, Ask about this) → Show answer, then four ratings with their next intervals; only Good is filled.
 
+## Component patterns (M3)
+
+- **Buttons:** primary 56px, jade fill, 600 weight; secondary 44px, silk with a rule border; quiet buttons have no border. Press: `scale(0.97)`, 120ms.
+- **Rows:** divided rows (`--rule` hairlines), 60px minimum, hanzi first at 24–26px when the row is a word.
+- **Sheets:** Radix dialog, slides up from the bottom on phones (260ms ease-out), centred 440px panel from 640px wide. Silk surface, 16px top radius.
+- **Rating buttons:** four columns, 60px tall, label over the interval (12px, tabular); only Good is filled, Again's label is cinnabar.
+- **Home without a tutor (until M4):** the prompt bar slot is a "Look up a word…" bar that opens Search.
+- **Large seal:** 72px cinnabar square with a glyph (毕) for a finished session or day.
+- **Example sentences** are shown only when written in the word's simplified form.
+
 ## Open items
 
-- Pressed and focus states for every control (focus ring must never be removed).
+- Pressed and focus states: done for buttons, rows, inputs and the switch (2px jade ring, 2px offset; never removed).
 - Offline state for the prompt bar, empty states, the vocabulary check, the tutor conversation.
 - Motion: card reveal, rating press, sheet for choosing a deck.

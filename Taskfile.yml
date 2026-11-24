@@ -112,6 +112,26 @@ tasks:
       # the Docker Desktop pipe skips the detection.
       - '{{if eq OS "windows"}}DOCKER_HOST={{.DOCKER_HOST | default "npipe:////./pipe/docker_engine"}} {{end}}go test {{if ne OS "windows"}}-race {{end}}-count=1 ./...'
 
+  web:install:
+    desc: Install the web client's packages
+    dir: web
+    cmds: [npm ci]
+    # Only when the lock file changed since the last install.
+    sources: [package-lock.json]
+    generates: [node_modules/.package-lock.json]
+
+  web:dev:
+    desc: "Run the web client with hot reload on :5173 (start the API with `task run:api` first)"
+    dir: web
+    deps: [web:install]
+    cmds: [npm run dev]
+
+  web:check:
+    desc: Lint, test, build and size-check the web client
+    dir: web
+    deps: [web:install]
+    cmds: [npm run check]
+
   test:short:
     desc: Run unit tests only (no Docker)
     cmds: [go test -short ./...]

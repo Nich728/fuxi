@@ -1,0 +1,228 @@
+/* Fuxi design tokens: .interface-design/system.md. Change them there first. */
+
+:root {
+  /* Materials, light: rice paper and jade. */
+  --paper: #ece3ce;
+  --silk: #f7f1e3;
+  --stack: #e2d6ba;
+  --rule: #d3c5a2;
+  --ink: #23211c;
+  --ink-soft: #5c574b;
+  --jade: #2f6b4f;
+  --on-jade: #f7f1e3;
+  --gold: #7e6231;
+  --cinnabar: #a63a2b;
+  /* Pressed jade and the inset input fill: the same hues, one step darker. */
+  --jade-pressed: #275a42;
+  --well: #f1e9d6;
+
+  /* Tone colours (Settings, off by default). Chosen against paper and silk; tone marks always stay visible. */
+  --tone-1: #a63a2b;
+  --tone-2: #8a6a1f;
+  --tone-3: #2f6b4f;
+  --tone-4: #3d5a8a;
+
+  --font-ui: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-hanzi: 'Noto Serif SC', 'Songti SC', serif;
+  --font-pinyin: 'Noto Serif', Georgia, serif;
+
+  --radius-card-review: 22px;
+  --radius-card: 16px;
+  --radius-control: 14px;
+  --radius-small: 11px;
+  --radius-seal: 4px;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --gutter: 20px;
+
+  color-scheme: light;
+}
+
+/* Lacquer and ink by night. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #141b17;
+    --silk: #1e2823;
+    --stack: #19221d;
+    --rule: #34423a;
+    --ink: #e8dfcb;
+    --ink-soft: #a39c8a;
+    --jade: #8fc2a3;
+    --on-jade: #141b17;
+    --gold: #c9a86a;
+    --cinnabar: #c8553f;
+    --jade-pressed: #7aaf8f;
+    --well: #18201c;
+
+    --tone-1: #e07a63;
+    --tone-2: #d4b062;
+    --tone-3: #8fc2a3;
+    --tone-4: #8fb0e0;
+
+    color-scheme: dark;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+}
+
+/* The focus ring is never removed (system.md, open items). */
+:focus-visible {
+  outline: 2px solid var(--jade);
+  outline-offset: 2px;
+}
+
+.hanzi {
+  font-family: var(--font-hanzi);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.pinyin {
+  font-family: var(--font-pinyin);
+  font-style: italic;
+  color: var(--jade);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.meta {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Buttons: one filled jade button per screen (system.md). */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--rule);
+  background: var(--silk);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: transform 120ms var(--ease-out), background-color 120ms var(--ease-out);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btn-primary {
+  min-height: 56px;
+  border-color: transparent;
+  background: var(--jade);
+  color: var(--on-jade);
+  font-weight: 600;
+}
+
+.btn-primary:active:not(:disabled) {
+  background: var(--jade-pressed);
+}
+
+.btn-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-soft);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--rule);
+  background: var(--well);
+  font-size: 16px; /* 16px stops iOS zooming into the field */
+}
+
+.input::placeholder {
+  color: var(--ink-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

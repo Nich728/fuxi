@@ -27,6 +27,8 @@ The owner develops on **Windows**. Use Task, not make (ADR-0017).
 | `task migrate -- status` | Run `fuxi migrate` on the host |
 | `task migrate:new -- name` | New goose migration in `db/migrations/` |
 | `task sqlc` | Regenerate `internal/*/…db` packages from `db/queries/*.sql` (runs sqlc in Docker; it can't build natively here) |
+| `task web:dev` | The web client with hot reload on :5173 (proxies `/v1` to the API on :8080) |
+| `task web:check` | Web lint (oxlint), tests (Vitest), production build and the 150 KB gzipped first-load budget |
 | `task data:download` / `task data:import` | Fetch the datasets into `FUXI_DATA_DIR` (set to `D:/fuxi-data` on the owner's PC) and import them |
 
 The local Postgres from Compose is on host port **5433**; the owner has a separate PostgreSQL 17 service on 5432.
@@ -52,4 +54,5 @@ Integration tests call `testdb.Start(t, true)` for a migrated throwaway Postgres
 
 - Go: standard library first, `chi` for routing, `pgx` + `sqlc` for SQL, `slog` for logs. Table-driven tests; `testcontainers-go` for anything that touches Postgres.
 - Errors: wrap with context (`fmt.Errorf("load deck: %w", err)`); API errors are RFC 9457 problem+json.
+- Web (`web/`): TypeScript, plain CSS on the design tokens (`src/index.css` mirrors `.interface-design/system.md`), Radix only for hard primitives (dialogs). Client-generated UUIDv7 ids for every write. Tests next to the code (`*.test.ts[x]`, Vitest + Testing Library, `src/test/fakeApi.tsx` fakes the API).
 - Docs and UI copy: plain, sentence case.

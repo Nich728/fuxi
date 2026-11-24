@@ -1,0 +1,54 @@
+.progress-hero {
+  padding: 8px 0 24px;
+}
+
+.progress-figure {
+  font-size: 44px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--jade);
+}
+
+.progress-streak {
+  margin-top: 10px;
+}
+
+.day-bars {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.day-bars li {
+  display: grid;
+  grid-template-columns: 72px 1fr 40px;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+  font-size: 13px;
+}
+
+.day-label {
+  color: var(--ink-soft);
+}
+
+.day-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--stack);
+  overflow: hidden;
+}
+
+.day-bar span {
+  display: block;
+  height: 100%;
+  background: var(--jade);
+  transform-origin: left;
+}
+
+.day-n {
+  text-align: right;
+}

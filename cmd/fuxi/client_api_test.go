@@ -26,6 +26,14 @@ func TestKnownWord(t *testing.T) {
 	recognition := list(n, "cards")[0]["id"].(string)
 	path := "/v1/knowledge/" + itoa(cidian)
 
+	// A single deck reports its words, like the deck list does.
+	if d := a.must(200, me, "GET", "/v1/decks/"+deck, nil); d["note_count"] != 1.0 {
+		t.Fatalf("deck note_count = %v, want 1", d["note_count"])
+	}
+	if d := a.must(200, me, "PATCH", "/v1/decks/"+deck, map[string]any{"name": "HSK 1 words"}); d["note_count"] != 1.0 {
+		t.Fatalf("renamed deck note_count = %v, want 1", d["note_count"])
+	}
+
 	// The word page can find the note by its entry.
 	if notes := list(a.must(200, me, "GET", "/v1/notes?entry_id="+itoa(cidian), nil), "notes"); len(notes) != 1 || notes[0]["deck_id"] != deck {
 		t.Fatalf("notes for entry = %v", notes)

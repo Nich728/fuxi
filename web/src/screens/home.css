@@ -1,0 +1,118 @@
+.home-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 52px;
+}
+
+.wordmark {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.wordmark .hanzi {
+  font-size: 24px;
+}
+
+.wordmark-latin {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gold);
+}
+
+.lookup-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  margin: 8px 0 24px;
+  padding: 0 16px;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--rule);
+  background: var(--well);
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.lookup-bar:active {
+  background: var(--stack);
+}
+
+/* Today: the next card on its stack is the focal point. */
+.today {
+  display: grid;
+  justify-items: center;
+  gap: 20px;
+  padding: 8px 0 28px;
+}
+
+.stack {
+  position: relative;
+  width: 168px;
+  height: 152px;
+  margin-top: 12px;
+}
+
+.stack-top,
+.stack-layer {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-card);
+  border: 1px solid var(--rule);
+}
+
+.stack-layer {
+  background: var(--stack);
+}
+
+.stack-layer-1 {
+  transform: translate(6px, -6px) rotate(3deg);
+}
+
+.stack-layer-2 {
+  transform: translate(-6px, -9px) rotate(-4deg);
+}
+
+.stack-top {
+  display: grid;
+  place-items: center;
+  background: var(--silk);
+}
+
+.stack-hanzi {
+  font-size: 64px;
+}
+
+.today-text {
+  text-align: center;
+}
+
+.today-count {
+  font-size: 22px;
+  letter-spacing: -0.01em;
+}
+
+.done-today {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 16px 0;
+  text-align: center;
+}
+
+.done-today h2 {
+  font-size: 22px;
+}
+
+.week {
+  padding: 4px 0;
+}
+
+.empty-actions {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  max-width: 320px;
+  margin-top: 12px;
+}
