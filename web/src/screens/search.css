@@ -3,54 +3,66 @@
   top: 0;
   z-index: 5;
   margin: 0 calc(-1 * var(--gutter));
-  padding: 8px var(--gutter) 12px;
+  padding: 16px var(--gutter) 12px;
   background: var(--paper);
 }
 
+/* An underlined field, set large: search is this screen's one loud thing. */
 .search-field {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-height: 52px;
-  padding: 0 14px;
-  border-radius: var(--radius-control);
-  border: 1px solid var(--rule);
-  background: var(--well);
+  gap: 12px;
+  min-height: 60px;
+  border-bottom: 2px solid var(--rule);
   color: var(--ink-soft);
+  transition: border-color 160ms var(--ease-out);
 }
 
 .search-field:focus-within {
-  outline: 2px solid var(--jade);
-  outline-offset: 2px;
+  border-bottom-color: var(--jade);
 }
 
 .search-input {
   flex: 1;
   min-width: 0;
-  height: 50px;
+  height: 56px;
   border: 0;
   background: transparent;
   color: var(--ink);
-  font-size: 16px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   outline: none;
+}
+
+.search-input::-webkit-search-cancel-button {
+  appearance: none;
 }
 
 .search-input::placeholder {
   color: var(--ink-soft);
+  font-weight: 500;
 }
 
 .search-hint {
-  padding: 24px 4px;
+  padding: 24px 0;
+  font-family: var(--font-serif);
+  font-size: 15px;
+  color: var(--ink-mid);
 }
 
 .search-note {
   margin: 4px 0 10px;
 }
 
+.result-in {
+  animation: fade-up 260ms var(--ease-out) both;
+}
+
 .result {
   align-items: flex-start;
   gap: 14px;
-  padding: 12px 2px;
+  padding: 14px 0;
 }
 
 .result-hanzi {
@@ -75,7 +87,9 @@
 
 .result-hsk {
   flex: none;
-  padding-top: 4px;
-  font-size: 12px;
-  font-weight: 500;
+  padding-top: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }

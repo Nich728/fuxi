@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { uuidv7 } from '../api/ids'
 import type { Deck, ImportResult, Note } from '../api/types'
 import { useApp } from '../app/state'
+import { ArrowIcon } from '../components/Icons'
 import { Empty, ErrorState, Loading, Pinyin, Screen, Sheet, TopBar } from '../components/ui'
 import { plural } from '../lib/format'
 import { useResource } from '../lib/useResource'
@@ -82,21 +83,21 @@ function DeckBody({
   return (
     <>
       <header className="deck-head">
-        <h1>{deck.name}</h1>
-        <p className="meta num">
+        <h1 className="display">{deck.name}</h1>
+        <p className="serif num">
           {plural(deck.note_count, 'word')} · {due} due · {fresh} new today
         </p>
       </header>
 
       {due + fresh > 0 ? (
         <Link href={`/review?deck=${deck.id}`} className="btn btn-primary btn-block">
-          Study this deck
+          Study this deck <ArrowIcon />
         </Link>
       ) : (
-        <p className="meta deck-idle">Nothing to study in this deck today.</p>
+        <p className="serif deck-idle">Nothing to study in this deck today.</p>
       )}
 
-      <h2 className="section-label">Words</h2>
+      <h2 className="label section-label">Words</h2>
       {notes.length === 0 ? (
         <Empty glyph="词" title="No words yet">
           <p>
@@ -128,7 +129,7 @@ function DeckBody({
 
       <CsvImport deck={deck} onDone={reload} />
 
-      <h2 className="section-label">Settings</h2>
+      <h2 className="label section-label">Settings</h2>
       <div className="settings-list">
         <label className="setting">
           <span>New cards a day</span>
@@ -223,7 +224,7 @@ function NoteSheet({ note, onClose, onDeleted }: { note: Note; onClose: () => vo
         <p>{full.fields.meaning}</p>
         {full.fields.notes && <p className="meta">{full.fields.notes}</p>}
       </div>
-      <h3 className="section-label">Cards</h3>
+      <h3 className="label section-label">Cards</h3>
       {!res.data ? (
         <Loading />
       ) : (
@@ -330,7 +331,7 @@ function CsvImport({ deck, onDone }: { deck: Deck; onDone: () => void }) {
 
   return (
     <section aria-labelledby="import-title">
-      <h2 id="import-title" className="section-label">
+      <h2 id="import-title" className="label section-label">
         Import
       </h2>
       <p className="meta">

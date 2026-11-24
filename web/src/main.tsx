@@ -3,10 +3,15 @@ import { createRoot } from 'react-dom/client'
 // Tokens and base styles first, so screen styles can refine them.
 import './index.css'
 import App from './App.tsx'
+import { finishSplash, shouldPlaySplash } from './lib/motion'
+
+// The launch splash plays on a cold start only (system.md motion).
+const splash = shouldPlaySplash()
+if (!splash) finishSplash()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <App splash={splash} />
   </StrictMode>,
 )
 

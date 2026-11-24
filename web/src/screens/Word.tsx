@@ -2,29 +2,19 @@ import { useState } from 'react'
 import { api } from '../api/client'
 import { uuidv7 } from '../api/ids'
 import type { Deck, DictEntryDetail, Note } from '../api/types'
+import { takeWord, type WordData } from '../lib/words'
 import { lastDeck, rememberDeck, searchHref, useApp } from '../app/state'
-import { CheckIcon, PlusIcon } from '../components/Icons'
-import { ErrorState, Loading, Pinyin, Screen, Sheet, TopBar } from '../components/ui'
+import { CheckIcon } from '../components/Icons'
+import { ErrorState, Loading, Pinyin, Roll, Screen, Sheet, TopBar } from '../components/ui'
 import { hskLabel, plural, simplifiedExamples } from '../lib/format'
 import { useResource } from '../lib/useResource'
 import './word.css'
 
-interface WordData {
-  entry: DictEntryDetail
-  notes: Note[]
-  known: boolean
-  decks: Deck[]
-}
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 /** A word's page (PRD L2): pinyin, meanings, HSK level and real example sentences. */
 export function WordScreen({ id }: { id: number }) {
-  const res = useResource<WordData>(
-    () =>
-      Promise.all([api.entry(id), api.notesForEntry(id), api.knowledge([id]), api.decks()]).then(
-        ([entry, notes, knowledge, decks]) => ({ entry, notes, known: knowledge.some((k) => k.status === 'known'), decks }),
-      ),
-    [id],
-  )
+  const res = useResource<WordData>(() => takeWord(id), [id])
 
   return (
     <Screen>
@@ -45,14 +35,21 @@ function WordBody({ data, update }: { data: WordData; update: (d: WordData) => v
   const { toast } = useApp()
   const [adding, setAdding] = useState(false)
   const [busy, setBusy] = useState(false)
-  const deckName = new Map(decks.map((d) => [d.id, d.name]))
+  // "I already know this": the link is struck through before "Known" replaces it.
+  const [striking, setStriking] = useState(false)
+  const [paused, setPaused] = useState(0)
+  // The deck a word was just added to: the button shows a tick for a moment.
+  const [added, setAdded] = useState<Deck>()
   const hsk = hskLabel(entry.hsk_level)
   const examples = simplifiedExamples(entry.examples, entry.simplified)
+  const inDecks = decks.filter((d) => notes.some((n) => n.deck_id === d.id))
 
   async function markKnown() {
     setBusy(true)
+    setStriking(true)
     try {
-      const r = await api.markKnown(entry.id)
+      const [r] = await Promise.all([api.markKnown(entry.id), pause(320)])
+      setPaused(r.cards_suspended)
       update({ ...data, known: true })
       toast(
         r.cards_suspended ? `Marked as known. ${plural(r.cards_suspended, 'card')} paused.` : 'Marked as known.',
@@ -62,6 +59,7 @@ function WordBody({ data, update }: { data: WordData; update: (d: WordData) => v
       toast((e as Error).message)
     } finally {
       setBusy(false)
+      setStriking(false)
     }
   }
 
@@ -83,50 +81,67 @@ function WordBody({ data, update }: { data: WordData; update: (d: WordData) => v
         <h1 className="hanzi word-hanzi" lang="zh-Hans">
           {entry.simplified}
         </h1>
+        <p className="word-sub">
+          <Pinyin text={entry.pinyin} className="word-pinyin" />
+          {hsk && <span className="label gold">{hsk}</span>}
+        </p>
         {entry.traditional !== entry.simplified && (
           <p className="meta" lang="zh-Hant">
             Traditional <span className="hanzi word-trad">{entry.traditional}</span>
           </p>
         )}
-        <Pinyin text={entry.pinyin} className="word-pinyin" />
-        {hsk && <p className="gold word-hsk">{hsk}</p>}
       </header>
 
-      <ol className="definitions">
+      <ol className="definitions serif">
         {entry.definitions.map((d, i) => (
           <li key={i}>{d}</li>
         ))}
       </ol>
 
       <div className="word-actions">
-        <button className="btn btn-primary btn-block" onClick={() => setAdding(true)}>
-          <PlusIcon size={20} /> Add to a deck
+        <button className={`btn btn-primary btn-block ${added ? 'is-added' : ''}`} onClick={() => setAdding(true)}>
+          {added ? (
+            <span className="added">
+              <CheckIcon size={18} />
+              Added to {added.name}
+            </span>
+          ) : (
+            'Add to a deck'
+          )}
         </button>
         {known ? (
-          <div className="known-row">
-            <span className="known-pill">
-              <CheckIcon size={18} /> You know this word
+          <p className="known">
+            <span className="known-state">
+              <CheckIcon size={16} /> Known{paused > 0 && ` · ${plural(paused, 'card')} paused`}
             </span>
-            <button className="btn btn-quiet" onClick={unmark} disabled={busy}>
+            <button className="link-btn" onClick={unmark} disabled={busy}>
               Undo
             </button>
-          </div>
+          </p>
         ) : (
-          <button className="btn btn-block" onClick={markKnown} disabled={busy}>
+          <button className={`link-btn know-link ${striking ? 'is-striking' : ''}`} onClick={markKnown} disabled={busy}>
             I already know this
           </button>
         )}
       </div>
 
-      {notes.length > 0 && (
-        <p className="meta in-decks">
-          In {notes.map((n) => deckName.get(n.deck_id) ?? 'a deck').join(', ')}
-        </p>
+      {inDecks.length > 0 && (
+        <ul className="in-decks">
+          {inDecks.map((d) => (
+            <li key={d.id}>
+              <span className="label">In</span> <span className="in-deck-name">{d.name}</span>{' '}
+              <span className="meta">
+                <Roll value={d.note_count} from={added?.id === d.id ? d.note_count - 1 : undefined} />{' '}
+                {d.note_count === 1 ? 'word' : 'words'}
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
 
       {examples.length > 0 && (
         <section aria-labelledby="examples">
-          <h2 id="examples" className="section-label">
+          <h2 id="examples" className="label section-label">
             Examples
           </h2>
           <ul className="examples">
@@ -135,8 +150,8 @@ function WordBody({ data, update }: { data: WordData; update: (d: WordData) => v
                 <p className="hanzi example-line" lang="zh-Hans">
                   {ex.zh}
                 </p>
-                {ex.en && <p className="meta">{ex.en}</p>}
-                {ex.source === 'ai' && <p className="meta gold">Written by AI</p>}
+                {ex.en && <p className="serif example-en">{ex.en}</p>}
+                {ex.source === 'ai' && <p className="label gold">Written by AI</p>}
               </li>
             ))}
           </ul>
@@ -152,9 +167,15 @@ function WordBody({ data, update }: { data: WordData; update: (d: WordData) => v
         inDecks={new Set(notes.map((n) => n.deck_id))}
         onAdded={(note, deck, newDeck) => {
           rememberDeck(deck.id)
-          update({ ...data, notes: [...notes, note], decks: newDeck ? [...decks, deck] : decks })
+          const counted = { ...deck, note_count: newDeck ? 1 : deck.note_count + 1 }
+          update({
+            ...data,
+            notes: [...notes, note],
+            decks: newDeck ? [...decks, counted] : decks.map((d) => (d.id === deck.id ? counted : d)),
+          })
           setAdding(false)
-          toast(`Added to ${deck.name}.`)
+          setAdded(counted)
+          setTimeout(() => setAdded(undefined), 2200)
         }}
       />
     </article>

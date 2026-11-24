@@ -64,6 +64,30 @@ export function weekdayGlyph(isoDate: string): string {
   return '日一二三四五六'[dow]
 }
 
+const DIGITS = '一二三四五六七八九'
+
+/** 1–31 in Chinese numerals: 5 → 五, 11 → 十一, 25 → 二十五. */
+function chineseNumber(n: number): string {
+  if (n < 10) return DIGITS[n - 1]
+  const tens = Math.floor(n / 10)
+  const ones = n % 10
+  return (tens > 1 ? DIGITS[tens - 1] : '') + '十' + (ones ? DIGITS[ones - 1] : '')
+}
+
+/** The home date line: "十一月二十五日 · 星期三" for 2026-11-25. */
+export function chineseDate(isoDate: string): string {
+  const [, m, d] = isoDate.split('-').map(Number)
+  return `${chineseNumber(m)}月${chineseNumber(d)}日 · 星期${weekdayGlyph(isoDate)}`
+}
+
+/**
+ * A rough session length for the home summary: about 8 seconds a review and
+ * 20 a new word, rounded up to whole minutes.
+ */
+export function sessionMinutes(due: number, fresh: number): number {
+  return Math.max(1, Math.ceil((due * 8 + fresh * 20) / 60))
+}
+
 /** Plural helper for plain English counts: plural(3, 'card') → "3 cards". */
 export function plural(n: number, word: string, many = word + 's'): string {
   return `${n} ${n === 1 ? word : many}`

@@ -11,8 +11,9 @@ export function AppProvider({ me: initial, children }: { me: Me; children: React
   const toast = useCallback(
     (message: string, action?: Toast['action']) => {
       const id = next.current++
-      setToasts((ts) => [...ts.slice(-2), { id, message, action }])
-      setTimeout(() => dismiss(id), action ? 6000 : 3500)
+      const ms = action ? 6000 : 3500
+      setToasts((ts) => [...ts.slice(-2), { id, message, action, ms }])
+      setTimeout(() => dismiss(id), ms)
     },
     [dismiss],
   )

@@ -1,65 +1,76 @@
-/* Fuxi design tokens: .interface-design/system.md. Change them there first. */
+/* Fuxi design tokens: .interface-design/system.md ("ink and signal"). Change them there first. */
 
+/* Ink, the default theme. */
 :root {
-  /* Materials, light: rice paper and jade. */
-  --paper: #ece3ce;
-  --silk: #f7f1e3;
-  --stack: #e2d6ba;
-  --rule: #d3c5a2;
-  --ink: #23211c;
-  --ink-soft: #5c574b;
-  --jade: #2f6b4f;
-  --on-jade: #f7f1e3;
-  --gold: #7e6231;
-  --cinnabar: #a63a2b;
-  /* Pressed jade and the inset input fill: the same hues, one step darker. */
-  --jade-pressed: #275a42;
-  --well: #f1e9d6;
+  --paper: #151615;
+  --silk: #1d1f1c;
+  --stack: #262824;
+  --rule: #2c2e2b;
+  --ink: #ece8df;
+  --ink-mid: #b9b5ab;
+  --ink-soft: #8c8a83;
+  --jade: #3fd98a;
+  --on-jade: #0b2a1a;
+  --gold: #c9a24a;
+  --cinnabar: #e4583e;
 
-  /* Tone colours (Settings, off by default). Chosen against paper and silk; tone marks always stay visible. */
-  --tone-1: #a63a2b;
-  --tone-2: #8a6a1f;
-  --tone-3: #2f6b4f;
-  --tone-4: #3d5a8a;
+  /* Tone colours (Settings, off by default); tone marks always stay visible. */
+  --tone-1: #f08a70;
+  --tone-2: #d9b45c;
+  --tone-3: #5fd99a;
+  --tone-4: #8db4f0;
 
   --font-ui: 'Plus Jakarta Sans', system-ui, sans-serif;
   --font-hanzi: 'Noto Serif SC', 'Songti SC', serif;
-  --font-pinyin: 'Noto Serif', Georgia, serif;
+  --font-serif: 'Noto Serif', Georgia, serif;
 
-  --radius-card-review: 22px;
-  --radius-card: 16px;
-  --radius-control: 14px;
-  --radius-small: 11px;
-  --radius-seal: 4px;
+  --radius: 6px;
+  --radius-sheet: 14px;
 
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --gutter: 20px;
 
+  color-scheme: dark;
+}
+
+/* Paper, the light theme: chosen in Settings, or by the device with "Match device". */
+:root[data-theme='paper'] {
+  --paper: #eeeae1;
+  --silk: #f7f4ee;
+  --stack: #dedad0;
+  --rule: #d6d1c4;
+  --ink: #161715;
+  --ink-mid: #4a4842;
+  --ink-soft: #6b6860;
+  --jade: #187a4a;
+  --on-jade: #f7f4ee;
+  --gold: #80631f;
+  --cinnabar: #b23a26;
+  --tone-1: #b23a26;
+  --tone-2: #8a6a1f;
+  --tone-3: #187a4a;
+  --tone-4: #3d5a8a;
   color-scheme: light;
 }
 
-/* Lacquer and ink by night. */
-@media (prefers-color-scheme: dark) {
-  :root {
-    --paper: #141b17;
-    --silk: #1e2823;
-    --stack: #19221d;
-    --rule: #34423a;
-    --ink: #e8dfcb;
-    --ink-soft: #a39c8a;
-    --jade: #8fc2a3;
-    --on-jade: #141b17;
-    --gold: #c9a86a;
-    --cinnabar: #c8553f;
-    --jade-pressed: #7aaf8f;
-    --well: #18201c;
-
-    --tone-1: #e07a63;
-    --tone-2: #d4b062;
-    --tone-3: #8fc2a3;
-    --tone-4: #8fb0e0;
-
-    color-scheme: dark;
+@media (prefers-color-scheme: light) {
+  :root[data-theme='auto'] {
+    --paper: #eeeae1;
+    --silk: #f7f4ee;
+    --stack: #dedad0;
+    --rule: #d6d1c4;
+    --ink: #161715;
+    --ink-mid: #4a4842;
+    --ink-soft: #6b6860;
+    --jade: #187a4a;
+    --on-jade: #f7f4ee;
+    --gold: #80631f;
+    --cinnabar: #b23a26;
+    --tone-1: #b23a26;
+    --tone-2: #8a6a1f;
+    --tone-3: #187a4a;
+    --tone-4: #3d5a8a;
+    color-scheme: light;
   }
 }
 
@@ -72,6 +83,7 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  background: var(--paper);
 }
 
 body {
@@ -91,7 +103,7 @@ h1,
 h2,
 h3 {
   margin: 0;
-  font-weight: 600;
+  font-weight: 700;
   text-wrap: balance;
 }
 
@@ -116,7 +128,7 @@ a {
   color: inherit;
 }
 
-/* The focus ring is never removed (system.md, open items). */
+/* The focus ring is never removed. */
 :focus-visible {
   outline: 2px solid var(--jade);
   outline-offset: 2px;
@@ -129,9 +141,22 @@ a {
 }
 
 .pinyin {
-  font-family: var(--font-pinyin);
+  font-family: var(--font-serif);
   font-style: italic;
-  color: var(--jade);
+  color: var(--ink-mid);
+}
+
+/* The voice: meanings, summaries, translations. */
+.serif {
+  font-family: var(--font-serif);
+  color: var(--ink-mid);
+}
+
+/* Big display type: one loud thing per screen. */
+.display {
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.95;
 }
 
 .num {
@@ -140,6 +165,15 @@ a {
 
 .meta {
   font-size: 13px;
+  color: var(--ink-soft);
+}
+
+/* Small uppercase labels; the source text stays in sentence case. */
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
   color: var(--ink-soft);
 }
 
@@ -152,7 +186,7 @@ a {
   white-space: nowrap;
 }
 
-/* Buttons: one filled jade button per screen (system.md). */
+/* Buttons: one filled jade button per screen. */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -160,14 +194,16 @@ a {
   gap: 8px;
   min-height: 44px;
   padding: 0 18px;
-  border-radius: var(--radius-control);
-  border: 1px solid var(--rule);
+  border: 0;
+  border-radius: var(--radius);
   background: var(--silk);
   color: var(--ink);
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
   text-decoration: none;
-  transition: transform 120ms var(--ease-out), background-color 120ms var(--ease-out);
+  transition:
+    transform 120ms var(--ease-out),
+    background-color 160ms var(--ease-out);
   user-select: none;
   -webkit-user-select: none;
   touch-action: manipulation;
@@ -183,19 +219,19 @@ a {
 }
 
 .btn-primary {
-  min-height: 56px;
-  border-color: transparent;
+  min-height: 52px;
+  padding: 0 16px;
   background: var(--jade);
   color: var(--on-jade);
-  font-weight: 600;
+  font-weight: 700;
 }
 
-.btn-primary:active:not(:disabled) {
-  background: var(--jade-pressed);
+/* A primary button that goes somewhere carries an arrow at its end. */
+.btn-primary:has(> svg:last-child) {
+  justify-content: space-between;
 }
 
 .btn-quiet {
-  border-color: transparent;
   background: transparent;
   color: var(--ink-soft);
 }
@@ -204,18 +240,146 @@ a {
   width: 100%;
 }
 
+/* Underlined fields, not boxes. */
 .input {
   width: 100%;
   min-height: 48px;
-  padding: 0 14px;
-  border-radius: var(--radius-control);
-  border: 1px solid var(--rule);
-  background: var(--well);
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  background: transparent;
   font-size: 16px; /* 16px stops iOS zooming into the field */
+  transition: border-color 160ms var(--ease-out);
+}
+
+.input:focus {
+  outline: none;
+  border-bottom-color: var(--jade);
+}
+
+.input:focus-visible {
+  outline: none;
+}
+
+select.input {
+  background: var(--paper);
 }
 
 .input::placeholder {
   color: var(--ink-soft);
+}
+
+/* Entrance: a line rises from behind a mask (home, session end). */
+.mask {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.06em;
+}
+
+.mask > * {
+  display: block;
+}
+
+.rise {
+  display: block;
+  animation: rise 600ms var(--ease-out) both;
+  animation-delay: var(--d, 0ms);
+}
+
+.fade-up {
+  animation: fade-up 420ms var(--ease-out) both;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(105%);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* While the launch splash plays, entrances wait under it. */
+.splashing .rise,
+.splashing .fade-up,
+.splashing .pop {
+  animation-play-state: paused;
+}
+
+/* A number rolling to its next value (counters, word counts). */
+.roll {
+  display: inline-block;
+  overflow: hidden;
+  height: 1.2em;
+  line-height: 1.2em;
+  vertical-align: -0.3em;
+}
+
+.roll > span {
+  display: block;
+}
+
+.roll.is-rolling > span {
+  animation: roll 320ms var(--ease-out) both;
+}
+
+@keyframes roll {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-1.2em);
+  }
+}
+
+/* Word pages slide in over the page they came from (View Transitions). */
+::view-transition-old(root) {
+  animation: vt-out 280ms var(--ease-out) both;
+}
+
+::view-transition-new(root) {
+  animation: vt-in 280ms var(--ease-out) both;
+}
+
+.vt-back::view-transition-old(root) {
+  animation-name: vt-out-back;
+  z-index: 2;
+}
+
+.vt-back::view-transition-new(root) {
+  animation-name: vt-in-back;
+}
+
+@keyframes vt-out {
+  to {
+    transform: translateX(-20%);
+    opacity: 0.4;
+  }
+}
+
+@keyframes vt-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes vt-out-back {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes vt-in-back {
+  from {
+    transform: translateX(-20%);
+    opacity: 0.4;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -224,5 +388,6 @@ a {
   *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
   }
 }

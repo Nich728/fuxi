@@ -1,6 +1,8 @@
 import { api } from '../api/client'
-import { ErrorState, Loading, Screen, SealWeek } from '../components/ui'
-import { plural } from '../lib/format'
+import type { Summary } from '../api/types'
+import { ErrorState, Loading, Screen, WeekDots } from '../components/ui'
+import { useCountUp } from '../lib/useCountUp'
+import { plural, weekdayGlyph } from '../lib/format'
 import { useResource } from '../lib/useResource'
 import './progress.css'
 
@@ -15,6 +17,7 @@ export function ProgressScreen() {
     <Screen>
       <header className="page-head">
         <h1>Progress</h1>
+        <span className="label">进度</span>
       </header>
       {res.error && !res.data ? (
         <ErrorState error={res.error} retry={res.reload} />
@@ -27,8 +30,9 @@ export function ProgressScreen() {
   )
 }
 
-function Week({ summary }: { summary: Awaited<ReturnType<typeof api.summary>> }) {
+function Week({ summary }: { summary: Summary }) {
   const total = summary.days.reduce((n, d) => n + d.reviews, 0)
+  const shown = useCountUp(total, true)
   // Days in a row with reviews, ending today (or yesterday, if today isn't done yet).
   let streak = 0
   for (let i = summary.days.length - 1; i >= 0; i--) {
@@ -41,24 +45,27 @@ function Week({ summary }: { summary: Awaited<ReturnType<typeof api.summary>> })
   return (
     <>
       <section className="progress-hero">
-        <p className="progress-figure num">{total}</p>
-        <p className="meta">reviews in the last 7 days</p>
+        <p className="label">Reviews · last 7 days</p>
+        <p className="progress-figure display num">{shown}</p>
+        <p className="serif num">{streak > 0 ? `${plural(streak, 'day')} in a row.` : 'Review today to start a streak.'}</p>
       </section>
 
-      <SealWeek days={summary.days} today={summary.today} />
-      <p className="meta progress-streak num">
-        {streak > 0 ? `${plural(streak, 'day')} in a row` : 'Review today to start a streak.'}
-      </p>
+      <h2 className="label section-label">This week</h2>
+      <WeekDots days={summary.days} today={summary.today} />
 
-      <h2 className="section-label">Reviews per day</h2>
+      <h2 className="label section-label">Reviews per day</h2>
+      {/* Each day's bar grows from the left in turn (system.md motion). */}
       <ol className="day-bars">
-        {summary.days.map((d) => (
+        {summary.days.map((d, i) => (
           <li key={d.date}>
-            <span className="day-label">
-              {new Date(d.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' })}
+            <span className="day-label hanzi" aria-hidden="true">
+              {weekdayGlyph(d.date)}
+            </span>
+            <span className="visually-hidden">
+              {new Date(d.date + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })}
             </span>
             <span className="day-bar" aria-hidden="true">
-              <span style={{ transform: `scaleX(${d.reviews / max})` }} />
+              <span style={{ transform: `scaleX(${d.reviews / max})`, animationDelay: `${i * 50}ms` }} />
             </span>
             <span className="day-n num">{d.reviews}</span>
           </li>

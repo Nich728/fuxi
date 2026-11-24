@@ -1,29 +1,47 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useState, type MouseEvent, type ReactNode } from 'react'
 import { Link, useLocation } from 'wouter'
 import { useApp } from '../app/state'
 import { weekdayGlyph } from '../lib/format'
+import { slideTo } from '../lib/slide'
 import { syllables } from '../lib/pinyin'
-import { BackIcon, CloseIcon, DecksIcon, HomeIcon, ProgressIcon, SearchIcon } from './Icons'
+import { BackIcon, CloseIcon } from './Icons'
 import './ui.css'
 
-/** Bottom tab bar: Home, Decks, Search, Progress (system.md layout). */
+const TABS = [
+  { to: '/', zh: '今日', en: 'Today', match: (p: string) => p === '/' },
+  { to: '/decks', zh: '词库', en: 'Decks', match: (p: string) => p.startsWith('/decks') },
+  { to: '/search', zh: '查', en: 'Search', match: (p: string) => p.startsWith('/search') || p.startsWith('/word') },
+  { to: '/progress', zh: '进度', en: 'Progress', match: (p: string) => p.startsWith('/progress') },
+]
+
+// Where the tab line was last drawn, so it slides from there to the new tab.
+let lastTab = -1
+
+/** The tab bar: Chinese names, small English labels, and a jade line that slides to the open tab (system.md). */
 export function TabBar() {
   const [path] = useLocation()
-  const tabs = [
-    { to: '/', label: 'Home', icon: <HomeIcon />, active: path === '/' },
-    { to: '/decks', label: 'Decks', icon: <DecksIcon />, active: path.startsWith('/decks') },
-    { to: '/search', label: 'Search', icon: <SearchIcon />, active: path.startsWith('/search') || path.startsWith('/word') },
-    { to: '/progress', label: 'Progress', icon: <ProgressIcon />, active: path.startsWith('/progress') },
-  ]
+  const active = TABS.findIndex((t) => t.match(path))
+  const [from] = useState(() => (lastTab >= 0 ? lastTab : active))
+  const [at, setAt] = useState(from)
+  useLayoutEffect(() => {
+    lastTab = active
+    // Draw at the previous tab first, then slide on the next frame.
+    const id = requestAnimationFrame(() => setAt(active))
+    return () => cancelAnimationFrame(id)
+  }, [active])
+
   return (
     <nav className="tabbar" aria-label="Main">
-      {tabs.map((t) => (
-        <Link key={t.to} href={t.to} className="tab" aria-current={t.active ? 'page' : undefined}>
-          {t.icon}
-          <span>{t.label}</span>
+      {TABS.map((t, i) => (
+        <Link key={t.to} href={t.to} className="tab" aria-current={i === active ? 'page' : undefined}>
+          <span className="tab-zh hanzi" lang="zh-Hans">
+            {t.zh}
+          </span>
+          <span className="tab-en">{t.en}</span>
         </Link>
       ))}
+      {at >= 0 && <span className="tab-line" aria-hidden="true" style={{ transform: `translateX(${at * 100}%)` }} />}
     </nav>
   )
 }
@@ -38,14 +56,48 @@ export function Screen({ children, tabs = true, className = '' }: { children: Re
   )
 }
 
+/**
+ * A link that slides the next page in from the right (or back out, with
+ * `back`) using View Transitions where the browser has them (system.md
+ * motion). `before` can delay the switch briefly, e.g. until a word has
+ * loaded, so the page arrives whole.
+ */
+export function SlideLink({
+  href,
+  back = false,
+  before,
+  className,
+  children,
+  ...rest
+}: {
+  href: string
+  back?: boolean
+  before?: () => Promise<unknown>
+  className?: string
+  children: ReactNode
+  'aria-label'?: string
+}) {
+  const [, navigate] = useLocation()
+  function go(e: MouseEvent) {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+    e.preventDefault()
+    slideTo(navigate, href, back, before)
+  }
+  return (
+    <Link href={href} className={className} onClick={go} {...rest}>
+      {children}
+    </Link>
+  )
+}
+
 /** A title bar with an optional back link and trailing control. */
 export function TopBar({ title, back, trailing }: { title?: ReactNode; back?: string; trailing?: ReactNode }) {
   return (
     <header className="topbar">
       {back ? (
-        <Link href={back} className="icon-btn" aria-label="Back">
+        <SlideLink href={back} back className="icon-btn" aria-label="Back">
           <BackIcon />
-        </Link>
+        </SlideLink>
       ) : (
         <span className="icon-btn-spacer" />
       )}
@@ -55,7 +107,7 @@ export function TopBar({ title, back, trailing }: { title?: ReactNode; back?: st
   )
 }
 
-/** Pinyin in jade italics, coloured by tone when the setting is on (PRD C2). */
+/** Pinyin in serif italics, coloured by tone when the setting is on (PRD C2). */
 export function Pinyin({ text, className = '' }: { text?: string; className?: string }) {
   const { me } = useApp()
   if (!text) return null
@@ -72,11 +124,22 @@ export function Pinyin({ text, className = '' }: { text?: string; className?: st
 }
 
 /**
- * The seal week: Monday to Sunday of this week, labelled 一 to 日. A day with
- * reviews is a filled cinnabar seal; today, until it's earned, is dashed;
- * days still to come are plain outlines (system.md signature elements).
+ * Week dots: Monday to Sunday of this week, labelled 一 to 日. A day with
+ * reviews is jade; today, until it's done, is a jade ring; days to come are
+ * faint (system.md signature elements). `intro` pops them in one after
+ * another; `celebrate` fills today's dot with a ripple, once, after a session.
  */
-export function SealWeek({ days, today }: { days: { date: string; reviews: number }[]; today: string }) {
+export function WeekDots({
+  days,
+  today,
+  intro = false,
+  celebrate = false,
+}: {
+  days: { date: string; reviews: number }[]
+  today: string
+  intro?: boolean
+  celebrate?: boolean
+}) {
   const reviews = new Map(days.map((d) => [d.date, d.reviews]))
   const [y, m, d] = today.split('-').map(Number)
   const t = new Date(Date.UTC(y, m - 1, d))
@@ -92,10 +155,15 @@ export function SealWeek({ days, today }: { days: { date: string; reviews: numbe
   })
   const done = week.filter((w) => w.kind === 'done').length
   return (
-    <ol className="seals" aria-label={`This week: studied on ${done} of 7 days`}>
-      {week.map((w) => (
-        <li key={w.iso} className={`seal seal-${w.kind}`} title={w.n ? `${w.n} reviews` : undefined}>
-          <span className="hanzi" aria-hidden="true">
+    <ol className="week-dots" aria-label={`This week: studied on ${done} of 7 days`}>
+      {week.map((w, i) => (
+        <li
+          key={w.iso}
+          className={`day day-${w.kind} ${celebrate && w.iso === today && w.kind === 'done' ? 'day-celebrate' : ''}`}
+          title={w.n ? `${w.n} reviews` : undefined}
+        >
+          <span className={`dot ${intro ? 'pop' : ''}`} style={intro ? { animationDelay: `${300 + i * 45}ms` } : undefined} />
+          <span className="day-glyph hanzi" aria-hidden="true">
             {weekdayGlyph(w.iso)}
           </span>
           <span className="visually-hidden">
@@ -104,6 +172,31 @@ export function SealWeek({ days, today }: { days: { date: string; reviews: numbe
         </li>
       ))}
     </ol>
+  )
+}
+
+/**
+ * A number that rolls up to its next value when it changes: the review
+ * counter, a deck's word count (system.md motion).
+ */
+export function Roll({ value, from, className = '' }: { value: number | string; from?: number | string; className?: string }) {
+  // With `from`, it rolls from there on first show (a count that just went up).
+  const [shown, setShown] = useState({ prev: from ?? value, cur: value, key: from === undefined ? 0 : 1 })
+  if (shown.cur !== value) setShown((s) => ({ prev: s.cur, cur: value, key: s.key + 1 }))
+  const rolling = shown.key > 0 && shown.prev !== shown.cur
+  return (
+    <span className={`roll num ${rolling ? 'is-rolling' : ''} ${className}`}>
+      {rolling ? (
+        <span key={shown.key} aria-hidden="true">
+          {shown.prev}
+          <br />
+          {shown.cur}
+        </span>
+      ) : (
+        <span aria-hidden="true">{shown.cur}</span>
+      )}
+      <span className="visually-hidden">{shown.cur}</span>
+    </span>
   )
 }
 
@@ -144,6 +237,7 @@ export function Sheet({
   )
 }
 
+/** Toasts slide up; with an action (Undo) a thin line shrinks for as long as it stays. */
 export function Toasts() {
   const { toasts, dismiss } = useApp()
   return (
@@ -162,6 +256,7 @@ export function Toasts() {
               {t.action.label}
             </button>
           )}
+          {t.action && <span className="toast-timer" aria-hidden="true" style={{ animationDuration: `${t.ms}ms` }} />}
         </div>
       ))}
     </div>

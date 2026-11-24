@@ -2,44 +2,77 @@
 .screen {
   max-width: 560px;
   margin: 0 auto;
-  padding: calc(env(safe-area-inset-top) + 12px) max(var(--gutter), env(safe-area-inset-right)) 32px
+  padding: calc(env(safe-area-inset-top) + 12px) max(var(--gutter), env(safe-area-inset-right)) 40px
     max(var(--gutter), env(safe-area-inset-left));
 }
 
 .screen.with-tabs {
-  padding-bottom: calc(env(safe-area-inset-bottom) + 96px);
+  padding-bottom: calc(env(safe-area-inset-bottom) + 104px);
 }
 
-/* Tab bar: silk on a hairline rule, labels at the 11px minimum. */
+/* Tab bar: Chinese names over small English labels, and a sliding jade line. */
 .tabbar {
   position: fixed;
   inset: auto 0 0 0;
   z-index: 10;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  padding: 6px max(8px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 6px)
-    max(8px, env(safe-area-inset-left));
   background: var(--paper);
   border-top: 1px solid var(--rule);
+  padding: 0 max(8px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(8px, env(safe-area-inset-left));
+}
+
+.tabbar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
 }
 
 .tab {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  min-height: 48px;
   justify-content: center;
+  gap: 1px;
+  min-height: 58px;
   color: var(--ink-soft);
-  font-size: 11px;
-  font-weight: 500;
   text-decoration: none;
-  border-radius: var(--radius-small);
   touch-action: manipulation;
+  transition: color 200ms var(--ease-out);
+}
+
+.tab-zh {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.tab-en {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .tab[aria-current='page'] {
-  color: var(--jade);
+  color: var(--ink);
+}
+
+/* One quarter of the bar, slid across by the active index. */
+.tab-line {
+  position: absolute;
+  top: -1px;
+  left: max(8px, env(safe-area-inset-left));
+  width: calc((100% - max(8px, env(safe-area-inset-left)) - max(8px, env(safe-area-inset-right))) / 4);
+  height: 2px;
+  pointer-events: none;
+  transition: transform 280ms var(--ease-out);
+}
+
+.tab-line::after {
+  content: '';
+  display: block;
+  width: 32px;
+  height: 2px;
+  margin: 0 auto;
+  background: var(--jade);
 }
 
 /* Top bar */
@@ -48,7 +81,7 @@
   grid-template-columns: 44px 1fr 44px;
   align-items: center;
   min-height: 48px;
-  margin-bottom: 12px;
+  margin: 0 -10px 12px;
 }
 
 .topbar-title {
@@ -65,15 +98,16 @@
   width: 44px;
   height: 44px;
   border: 0;
-  border-radius: var(--radius-small);
+  border-radius: var(--radius);
   background: transparent;
   color: var(--ink-soft);
   text-decoration: none;
   touch-action: manipulation;
+  transition: transform 120ms var(--ease-out);
 }
 
 .icon-btn:active {
-  background: var(--stack);
+  transform: scale(0.92);
 }
 
 .icon-btn-spacer {
@@ -86,55 +120,95 @@
 .tone-3 { color: var(--tone-3); }
 .tone-4 { color: var(--tone-4); }
 
-/* Seal week */
-.seals {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
+/* Week dots */
+.week-dots {
+  display: flex;
+  gap: 14px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.seal {
+.day {
   display: grid;
-  place-items: center;
-  aspect-ratio: 1;
-  max-width: 44px;
-  width: 100%;
-  justify-self: center;
-  border-radius: var(--radius-seal);
-  border: 1.5px solid var(--rule);
-  color: var(--ink-soft);
-  font-size: 17px;
+  justify-items: center;
+  gap: 8px;
 }
 
-.seal .hanzi {
+.dot {
+  position: relative;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--stack);
+}
+
+.day-done .dot {
+  background: var(--jade);
+}
+
+.day-today .dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--jade);
+}
+
+.day-future .dot {
+  opacity: 0.5;
+}
+
+.day-glyph {
+  font-size: 12px;
   font-weight: 400;
-}
-
-.seal-done {
-  background: var(--cinnabar);
-  border-color: var(--cinnabar);
-  color: var(--silk);
-}
-
-.seal-done .hanzi {
-  font-weight: 600;
-}
-
-.seal-today {
-  border: 1.5px dashed var(--cinnabar);
-  color: var(--cinnabar);
-}
-
-.seal-missed {
   color: var(--ink-soft);
-  opacity: 0.7;
 }
 
-.seal-future {
-  opacity: 0.55;
+.day-today .day-glyph,
+.day-celebrate .day-glyph {
+  color: var(--ink);
+}
+
+.dot.pop {
+  animation: pop 320ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+}
+
+/* Back home after a session: today's ring fills, a ripple spreads once. */
+.day-celebrate .dot {
+  animation: dot-fill 360ms var(--ease-out) 500ms both;
+}
+
+.day-celebrate .dot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--jade);
+  opacity: 0;
+  animation: ripple 700ms var(--ease-out) 600ms;
+}
+
+@keyframes dot-fill {
+  from {
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px var(--jade);
+  }
+}
+
+@keyframes ripple {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(2.8);
+    opacity: 0;
+  }
 }
 
 /* Sheet: slides up from the bottom on phones. */
@@ -142,7 +216,7 @@
   position: fixed;
   inset: 0;
   z-index: 30;
-  background: rgb(20 27 23 / 0.38);
+  background: rgb(0 0 0 / 0.5);
   animation: fade-in 200ms var(--ease-out);
 }
 
@@ -155,8 +229,7 @@
   overscroll-behavior: contain;
   padding: 8px var(--gutter) calc(env(safe-area-inset-bottom) + 20px);
   background: var(--silk);
-  border-top: 1px solid var(--rule);
-  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
   animation: sheet-in 260ms var(--ease-out);
 }
 
@@ -169,8 +242,7 @@
     inset: 50% auto auto 50%;
     width: 440px;
     transform: translate(-50%, -50%);
-    border: 1px solid var(--rule);
-    border-radius: var(--radius-card);
+    border-radius: var(--radius-sheet);
     animation: panel-in 200ms var(--ease-out);
   }
 }
@@ -179,12 +251,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 48px;
+  min-height: 52px;
+  margin-right: -10px;
 }
 
 .sheet-title {
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .sheet-desc {
@@ -206,7 +280,7 @@
 /* Toasts sit above the tab bar. */
 .toasts {
   position: fixed;
-  inset: auto 0 calc(env(safe-area-inset-bottom) + 84px) 0;
+  inset: auto 0 calc(env(safe-area-inset-bottom) + 76px) 0;
   z-index: 40;
   display: grid;
   justify-items: center;
@@ -216,18 +290,21 @@
 }
 
 .toast {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 16px;
   max-width: 520px;
   min-height: 48px;
   padding: 0 8px 0 16px;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius);
   background: var(--ink);
   color: var(--paper);
   font-size: 14px;
+  font-weight: 500;
   pointer-events: auto;
-  animation: toast-in 220ms var(--ease-out);
+  animation: toast-in 260ms var(--ease-out);
 }
 
 .toast:not(:has(.toast-action)) {
@@ -238,36 +315,56 @@
   min-height: 40px;
   padding: 0 10px;
   border: 0;
-  border-radius: var(--radius-small);
+  border-radius: var(--radius);
   background: transparent;
   color: var(--paper);
-  font-weight: 600;
+  font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
+/* How long Undo stays. */
+.toast-timer {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 2px;
+  background: var(--jade);
+  transform-origin: left;
+  animation: toast-timer linear both;
+}
+
 @keyframes toast-in {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(100%); }
+}
+
+@keyframes toast-timer {
+  to { transform: scaleX(0); }
 }
 
 /* States */
 .state {
   display: grid;
-  justify-items: center;
+  justify-items: start;
   gap: 12px;
-  padding: 56px 16px;
-  text-align: center;
+  padding: 48px 0;
   color: var(--ink-soft);
 }
 
 .state h2 {
-  font-size: 17px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
   color: var(--ink);
 }
 
+.state[aria-busy='true'] {
+  justify-items: center;
+}
+
 .empty-glyph {
-  font-size: 64px;
-  color: var(--rule);
+  font-size: 72px;
+  line-height: 1;
+  color: var(--stack);
 }
 
 .state-dots {
@@ -279,7 +376,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--rule);
+  background: var(--stack);
   animation: dot 1s var(--ease-out) infinite;
 }
 
@@ -287,15 +384,14 @@
 .state-dots span:nth-child(3) { animation-delay: 300ms; }
 
 @keyframes dot {
-  50% { background: var(--ink-soft); }
+  50% { background: var(--jade); }
 }
 
-/* Divided rows (decks, search results): rows, not cards (system.md). */
+/* Rows in long lists: hairline-divided (system.md). */
 .rows {
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--rule);
 }
 
 .row {
@@ -303,10 +399,11 @@
   align-items: center;
   gap: 12px;
   min-height: 60px;
-  padding: 10px 2px;
+  padding: 10px 0;
   border-bottom: 1px solid var(--rule);
   color: inherit;
   text-decoration: none;
+  transition: opacity 160ms var(--ease-out);
 }
 
 .row-main {
@@ -318,15 +415,16 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .row-sub {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
-  color: var(--ink-soft);
+  font-family: var(--font-serif);
+  font-size: 14px;
+  color: var(--ink-mid);
 }
 
 .row-end {
@@ -334,11 +432,13 @@
   align-items: center;
   gap: 10px;
   color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 a.row:active,
 button.row:active {
-  background: var(--stack);
+  opacity: 0.6;
 }
 
 button.row {
@@ -349,11 +449,64 @@ button.row {
   text-align: left;
 }
 
-.section-label {
-  margin: 28px 0 8px;
-  font-size: 13px;
-  font-weight: 500;
+/* Deck rows: big type, no chevrons (system.md). */
+.deck-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.deck-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  color: var(--ink);
+  text-decoration: none;
+  transition: opacity 160ms var(--ease-out);
+}
+
+.deck-row:active {
+  opacity: 0.6;
+}
+
+.deck-row-tall {
+  align-items: center;
+  padding: 14px 0;
+}
+
+.deck-row-tall .deck-row-name {
+  display: block;
+}
+
+.deck-row-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.deck-row.is-idle .deck-row-name {
   color: var(--ink-soft);
+}
+
+.deck-row-count {
+  flex: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.deck-row-count .due {
+  color: var(--jade);
+}
+
+.section-label {
+  margin: 36px 0 12px;
 }
 
 .gold {
@@ -362,59 +515,42 @@ button.row {
 
 .count-due {
   color: var(--jade);
-  font-weight: 600;
 }
-
-/* A large seal: a finished session or day. */
-.seal-big {
-  display: grid;
-  place-items: center;
-  width: 72px;
-  height: 72px;
-  border-radius: var(--radius-seal);
-  background: var(--cinnabar);
-  color: var(--silk);
-  font-size: 40px;
-}
-
 
 /* Page scaffolding shared by the list screens. */
 .page-head {
   display: flex;
-  align-items: center;
-  min-height: 52px;
-  margin-bottom: 12px;
+  align-items: flex-end;
+  justify-content: space-between;
+  min-height: 64px;
+  margin-bottom: 16px;
 }
 
 .page-head h1 {
-  font-size: 28px;
-  letter-spacing: -0.01em;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
 }
 
 .page-foot {
-  margin-top: 20px;
+  margin-top: 24px;
 }
 
 .form {
   display: grid;
-  gap: 14px;
+  gap: 18px;
 }
 
 .field {
   display: grid;
-  gap: 6px;
-}
-
-.field-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--ink-soft);
+  gap: 2px;
 }
 
 .form-error {
   margin: 0;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .confirm-row {
@@ -424,25 +560,23 @@ button.row {
   margin-top: 8px;
 }
 
-/* Destructive confirms are ink, not cinnabar: cinnabar means a seal or Again. */
+/* Destructive confirms are ink, not cinnabar: cinnabar means Again. */
 .btn-danger {
-  border-color: transparent;
   background: var(--ink);
   color: var(--paper);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .link-btn {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--jade);
+  color: var(--ink-mid);
   font-size: 13px;
   text-align: left;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-
 
 .credits {
   line-height: 1.6;
@@ -453,14 +587,13 @@ button.row {
   appearance: none;
   flex: none;
   position: relative;
-  width: 48px;
-  height: 28px;
+  width: 46px;
+  height: 26px;
   margin: 0;
-  border-radius: 14px;
-  border: 1px solid var(--rule);
+  border-radius: 13px;
   background: var(--stack);
   cursor: pointer;
-  transition: background-color 160ms var(--ease-out);
+  transition: background-color 200ms var(--ease-out);
 }
 
 .switch::after {
@@ -471,19 +604,19 @@ button.row {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: var(--silk);
-  border: 1px solid var(--rule);
-  transition: transform 160ms var(--ease-out);
+  background: var(--ink-soft);
+  transition:
+    transform 200ms var(--ease-out),
+    background-color 200ms var(--ease-out);
 }
 
 .switch:checked {
   background: var(--jade);
-  border-color: var(--jade);
 }
 
 .switch:checked::after {
   transform: translateX(20px);
-  border-color: transparent;
+  background: var(--on-jade);
 }
 
 span.row-title,

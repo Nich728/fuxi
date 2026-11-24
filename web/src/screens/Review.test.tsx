@@ -54,7 +54,7 @@ describe('ReviewScreen', () => {
     expect(await screen.findByText('词典')).toBeInTheDocument()
     expect(screen.getByText('HSK 1')).toBeInTheDocument()
     expect(screen.queryByText('dictionary')).not.toBeInTheDocument()
-    expect(screen.getByText('2 left')).toBeInTheDocument()
+    expect(screen.getByLabelText('2 cards left')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Show answer' }))
     expect(screen.getByText('dictionary')).toBeInTheDocument()
@@ -66,7 +66,7 @@ describe('ReviewScreen', () => {
     await user.click(screen.getByRole('button', { name: /Good/ }))
 
     // The recall card asks with the meaning and hides the hanzi until revealed.
-    expect(await screen.findByText('1 left')).toBeInTheDocument()
+    expect(await screen.findByLabelText('1 card left')).toBeInTheDocument()
     expect(screen.getByText('dictionary')).toBeInTheDocument()
     expect(screen.queryByText('你好')).not.toBeInTheDocument()
 
@@ -83,7 +83,7 @@ describe('ReviewScreen', () => {
 
     // Both ratings were learning steps due within the session, so they come back.
     expect(await screen.findByText(/2 cards are still being learned/)).toBeInTheDocument()
-    expect(screen.getByText('50%')).toBeInTheDocument() // one Again out of two
+    expect(screen.getByText(/50% remembered/)).toBeInTheDocument() // one Again out of two
     await waitFor(() => expect(posts()).toHaveLength(2))
   })
 
@@ -104,7 +104,7 @@ describe('ReviewScreen', () => {
     renderAt('/review', <ReviewScreen />)
     await user.click(await screen.findByRole('button', { name: 'Show answer' }))
     await user.click(screen.getByRole('button', { name: /Easy/ }))
-    expect(await screen.findByText('Done for now')).toBeInTheDocument()
+    expect(await screen.findByText('Session done')).toBeInTheDocument()
     await waitFor(() => expect(attempts).toBe(2), { timeout: 3000 })
     expect(ids.size).toBe(1)
   })

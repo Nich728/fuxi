@@ -18,35 +18,12 @@ const svg = (size: number, children: React.ReactNode) => (
   </svg>
 )
 
-export const HomeIcon = ({ size = 24 }: P) => svg(size, <path d="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z" />)
-
-/** A small stack of cards. */
-export const DecksIcon = ({ size = 24 }: P) =>
-  svg(
-    size,
-    <>
-      <rect x="5" y="8" width="14" height="11" rx="2" />
-      <path d="M7.5 5h9" />
-    </>,
-  )
-
 export const SearchIcon = ({ size = 24 }: P) =>
   svg(
     size,
     <>
       <circle cx="11" cy="11" r="6" />
       <path d="m15.5 15.5 4 4" />
-    </>,
-  )
-
-/** Three rising seals. */
-export const ProgressIcon = ({ size = 24 }: P) =>
-  svg(
-    size,
-    <>
-      <rect x="4" y="13" width="4" height="6" rx="1" />
-      <rect x="10" y="9" width="4" height="10" rx="1" />
-      <rect x="16" y="5" width="4" height="14" rx="1" />
     </>,
   )
 
@@ -69,3 +46,5 @@ export const PlusIcon = ({ size = 24 }: P) => svg(size, <path d="M12 5v14M5 12h1
 export const CheckIcon = ({ size = 24 }: P) => svg(size, <path d="m5 12.5 4.5 4.5L19 7.5" />)
 
 export const ChevronIcon = ({ size = 20 }: P) => svg(size, <path d="m9.5 6 6 6-6 6" />)
+
+export const ArrowIcon = ({ size = 20 }: P) => svg(size, <path d="M5 12h14M13 6l6 6-6 6" />)

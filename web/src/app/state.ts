@@ -5,6 +5,8 @@ export interface Toast {
   id: number
   message: string
   action?: { label: string; run: () => void }
+  /** How long it stays, ms. */
+  ms: number
 }
 
 export interface AppState {

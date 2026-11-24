@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { Link, useLocation, useSearchParams } from 'wouter'
 import { api, ApiError } from '../api/client'
 import { deviceId, uuidv7 } from '../api/ids'
 import type { DictEntryDetail, QueueCard, Rating } from '../api/types'
 import { useApp } from '../app/state'
-import { CloseIcon } from '../components/Icons'
-import { Empty, ErrorState, Loading, Pinyin } from '../components/ui'
+import { ArrowIcon, CloseIcon } from '../components/Icons'
+import { DotSeal } from '../components/DotSeal'
+import { Empty, ErrorState, Loading, Pinyin, Roll } from '../components/ui'
 import { cardMeaning, formatInterval, hskLabel, plural, simplifiedExamples, spreadSiblings } from '../lib/format'
+import { celebrateToday } from '../lib/motion'
 import './review.css'
 
 const RATINGS: { rating: Rating; key: keyof QueueCard['preview']; label: string }[] = [
@@ -180,7 +182,7 @@ export function ReviewScreen() {
   const total = cards.length
   return (
     <main className="review">
-      <ReviewBar onClose="/" done={index} total={total} />
+      <ReviewBar onClose="/" done={index} total={total} label={deckNames.get(card!.deck_id)} />
       <CardView key={card!.card_id + index} card={card!} deckName={deckNames.get(card!.deck_id)} revealed={revealed} />
       <div className="review-actions">
         {!revealed ? (
@@ -192,7 +194,7 @@ export function ReviewScreen() {
             {RATINGS.map((r) => (
               <button
                 key={r.rating}
-                className={`btn rating rating-${r.key} ${r.rating === 3 ? 'btn-primary' : ''}`}
+                className={`rating rating-${r.key}`}
                 onClick={() => rate(r.rating)}
               >
                 <span className="rating-label">{r.label}</span>
@@ -222,23 +224,26 @@ async function send(review: Parameters<typeof api.review>[0], tries: number): Pr
   }
 }
 
-function ReviewBar({ onClose, done, total }: { onClose: string; done?: number; total?: number }) {
+function ReviewBar({ onClose, done, total, label }: { onClose: string; done?: number; total?: number; label?: string }) {
   const pct = total ? (done! / total) * 100 : 0
   return (
     <header className="review-bar">
-      <Link href={onClose} className="icon-btn" aria-label="End review">
-        <CloseIcon />
-      </Link>
-      {total !== undefined ? (
+      <div className="review-bar-row">
+        <Link href={onClose} className="icon-btn" aria-label="End review">
+          <CloseIcon />
+        </Link>
+        <span className="label review-deck">{label}</span>
+        {total !== undefined && (
+          <span className="label review-count" aria-label={`${plural(total - done!, 'card')} left`}>
+            <Roll value={Math.min(done! + 1, total)} /> / {total}
+          </span>
+        )}
+      </div>
+      {total !== undefined && (
         <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} aria-label="Cards reviewed">
           <div className="progress-fill" style={{ transform: `scaleX(${pct / 100})` }} />
         </div>
-      ) : (
-        <span />
       )}
-      <span className="review-count num" aria-hidden={total === undefined}>
-        {total !== undefined ? `${total - done!} left` : ''}
-      </span>
     </header>
   )
 }
@@ -261,11 +266,8 @@ function CardView({ card, deckName, revealed }: { card: QueueCard; deckName?: st
   const hsk = hskLabel(entry?.hsk_level)
 
   return (
-    <article className="card" aria-live="polite">
-      <div className="card-meta gold">
-        <span>{deckName}</span>
-        {hsk && <span>{hsk}</span>}
-      </div>
+    <article className="card" aria-live="polite" aria-label={deckName}>
+      {hsk && <p className="label gold card-meta">{hsk}</p>}
 
       <div className="card-face">
         {recall ? (
@@ -282,12 +284,12 @@ function CardView({ card, deckName, revealed }: { card: QueueCard; deckName?: st
         {revealed && (
           <>
             <Pinyin text={f.pinyin} className="card-pinyin" />
-            {!recall && <p className="card-meaning">{cardMeaning(f.meaning)}</p>}
+            {!recall && <p className="serif card-meaning">{cardMeaning(f.meaning)}</p>}
             {f.notes && <p className="meta card-notes">{f.notes}</p>}
             {example && (
               <figure className="example">
                 <blockquote className="example-zh hanzi">{example.zh}</blockquote>
-                {example.en && <figcaption className="meta">{example.en}</figcaption>}
+                {example.en && <figcaption className="serif example-en">{example.en}</figcaption>}
               </figure>
             )}
           </>
@@ -303,6 +305,10 @@ function SessionEnd({ stats, later, now, onContinue }: { stats: Stats; later: Pe
   const accuracy = stats.reviewed ? Math.round(((stats.reviewed - stats.again) / stats.reviewed) * 100) : 0
   const soonest = useMemo(() => Math.min(...later.map((p) => p.dueAt)), [later])
   const ready = later.length > 0 && soonest <= now + 60_000
+  // Home fills today's dot when you get back (system.md motion).
+  useEffect(() => {
+    if (stats.reviewed > 0) celebrateToday()
+  }, [stats.reviewed])
 
   if (stats.reviewed === 0 && later.length === 0) {
     return (
@@ -317,28 +323,28 @@ function SessionEnd({ stats, later, now, onContinue }: { stats: Stats; later: Pe
 
   return (
     <section className="session-end">
-      <span className="seal-big hanzi" aria-hidden="true">
-        毕
-      </span>
-      <h1>{stats.reviewed === 0 ? 'Cards coming back soon' : later.length ? 'Nice work so far' : 'Done for now'}</h1>
+      <DotSeal glyph="毕" />
+      <p className="label">{stats.reviewed === 0 ? 'Still learning' : 'Session done'}</p>
       {stats.reviewed > 0 && (
-      <dl className="session-stats num">
-        <div>
-          <dt>Cards</dt>
-          <dd>{stats.reviewed}</dd>
-        </div>
-        <div>
-          <dt>Remembered</dt>
-          <dd>{accuracy}%</dd>
-        </div>
-        <div>
-          <dt>Time</dt>
-          <dd>{minutes} min</dd>
-        </div>
-      </dl>
+        <>
+          <h1 className="display session-cards num">
+            <span className="mask">
+              <span className="rise" style={{ '--d': '900ms' } as CSSProperties}>
+                {plural(stats.reviewed, 'card')}
+              </span>
+            </span>
+          </h1>
+          <p className="serif session-line num">
+            <span className="mask">
+              <span className="rise" style={{ '--d': '980ms' } as CSSProperties}>
+                {accuracy}% remembered · {minutes} min
+              </span>
+            </span>
+          </p>
+        </>
       )}
       {later.length > 0 ? (
-        <div className="session-later">
+        <div className="session-later fade-up" style={{ '--d': '1100ms' } as CSSProperties}>
           <p className="meta">
             {plural(later.length, 'card')} {later.length === 1 ? 'is' : 'are'} still being learned
             {ready ? ' and ready now.' : `; the next is ready in ${formatInterval(new Date(soonest), new Date(now))}.`}
@@ -351,8 +357,8 @@ function SessionEnd({ stats, later, now, onContinue }: { stats: Stats; later: Pe
           </Link>
         </div>
       ) : (
-        <Link href="/" className="btn btn-primary btn-block">
-          Back to home
+        <Link href="/" className="btn btn-primary btn-block session-home fade-up" style={{ '--d': '1100ms' } as CSSProperties}>
+          Back to home <ArrowIcon />
         </Link>
       )}
     </section>

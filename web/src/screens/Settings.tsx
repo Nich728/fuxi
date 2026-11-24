@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import type { Me } from '../api/types'
 import { useApp } from '../app/state'
 import { Pinyin, Screen, TopBar } from '../components/ui'
+import { getTheme, setTheme, type Theme } from '../lib/theme'
 import './deck.css'
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h)
@@ -15,6 +16,7 @@ function hourLabel(h: number): string {
 export function SettingsScreen() {
   const { me, setMe, toast } = useApp()
   const [saving, setSaving] = useState(false)
+  const [theme, setThemeState] = useState<Theme>(getTheme)
   const zones = useMemo(() => {
     try {
       return Intl.supportedValuesOf('timeZone')
@@ -37,9 +39,12 @@ export function SettingsScreen() {
   const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone
   return (
     <Screen>
-      <TopBar back="/" title="Settings" />
+      <TopBar back="/" />
+      <header className="page-head">
+        <h1>Settings</h1>
+      </header>
 
-      <h2 className="section-label">Study day</h2>
+      <h2 className="label section-label">Study day</h2>
       <div className="settings-list">
         <label className="setting">
           <span>
@@ -83,8 +88,27 @@ export function SettingsScreen() {
         </label>
       </div>
 
-      <h2 className="section-label">Display</h2>
+      <h2 className="label section-label">Display</h2>
       <div className="settings-list">
+        <label className="setting">
+          <span>
+            Theme
+            <span className="meta setting-help">Kept on this device.</span>
+          </span>
+          <select
+            className="input setting-input"
+            value={theme}
+            onChange={(e) => {
+              const t = e.target.value as Theme
+              setTheme(t)
+              setThemeState(t)
+            }}
+          >
+            <option value="ink">Ink</option>
+            <option value="paper">Paper</option>
+            <option value="auto">Match device</option>
+          </select>
+        </label>
         <label className="setting">
           <span>
             Tone colours
@@ -119,7 +143,7 @@ export function SettingsScreen() {
         </label>
       </div>
 
-      <h2 className="section-label">Account</h2>
+      <h2 className="label section-label">Account</h2>
       <div className="settings-list">
         <div className="setting">
           <span>
@@ -133,7 +157,7 @@ export function SettingsScreen() {
         </div>
       </div>
 
-      <h2 className="section-label">Credits</h2>
+      <h2 className="label section-label">Credits</h2>
       <p className="meta credits">
         Dictionary: <a href="https://cc-cedict.org/wiki/">CC-CEDICT</a> (CC BY-SA 4.0). Example sentences:{' '}
         <a href="https://tatoeba.org">Tatoeba</a> (CC BY 2.0 FR). HSK 3.0 word lists, levels 7–9 shown as one band.

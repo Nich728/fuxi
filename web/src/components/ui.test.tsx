@@ -1,9 +1,9 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { SealWeek } from './ui'
+import { Roll, WeekDots } from './ui'
 
-describe('SealWeek', () => {
-  it('shows Monday to Sunday: sealed days, today, and days to come', () => {
+describe('WeekDots', () => {
+  it('shows Monday to Sunday: done days, today, and days to come', () => {
     // Today is Wednesday 25 November 2026.
     const days = [
       { date: '2026-11-19', reviews: 3 },
@@ -14,10 +14,10 @@ describe('SealWeek', () => {
       { date: '2026-11-24', reviews: 0 },
       { date: '2026-11-25', reviews: 0 },
     ]
-    const { container } = render(<SealWeek days={days} today="2026-11-25" />)
-    const seals = [...container.querySelectorAll('.seal')]
-    expect(seals.map((s) => s.textContent?.[0])).toEqual(['一', '二', '三', '四', '五', '六', '日'])
-    expect(seals.map((s) => s.className.replace('seal seal-', ''))).toEqual([
+    const { container } = render(<WeekDots days={days} today="2026-11-25" />)
+    const items = [...container.querySelectorAll('.day')]
+    expect(items.map((d) => d.querySelector('.day-glyph')?.textContent)).toEqual(['一', '二', '三', '四', '五', '六', '日'])
+    expect(items.map((d) => d.className.trim().replace('day day-', ''))).toEqual([
       'done',
       'missed',
       'today',
@@ -27,5 +27,25 @@ describe('SealWeek', () => {
       'future',
     ])
     expect(screen.getByRole('list', { name: 'This week: studied on 1 of 7 days' })).toBeInTheDocument()
+  })
+
+  it('fills today with a ripple only when asked to celebrate a finished day', () => {
+    const days = [{ date: '2026-11-25', reviews: 20 }]
+    const { container, rerender } = render(<WeekDots days={days} today="2026-11-25" />)
+    expect(container.querySelector('.day-celebrate')).toBeNull()
+    rerender(<WeekDots days={days} today="2026-11-25" celebrate />)
+    expect(container.querySelector('.day-celebrate .day-glyph')?.textContent).toBe('三')
+  })
+})
+
+describe('Roll', () => {
+  it('rolls from the old value to the new one, and reads as the new one', () => {
+    const { container, rerender } = render(<Roll value={41} />)
+    expect(container.querySelector('.roll')).not.toHaveClass('is-rolling')
+    act(() => rerender(<Roll value={42} />))
+    const roll = container.querySelector('.roll')!
+    expect(roll).toHaveClass('is-rolling')
+    expect(roll.querySelector('[aria-hidden]')?.textContent).toBe('4142')
+    expect(roll.querySelector('.visually-hidden')?.textContent).toBe('42')
   })
 })

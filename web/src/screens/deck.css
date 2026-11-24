@@ -1,12 +1,13 @@
 .deck-head {
   display: grid;
-  gap: 4px;
-  margin-bottom: 20px;
+  gap: 10px;
+  margin-bottom: 24px;
 }
 
 .deck-head h1 {
-  font-size: 28px;
-  letter-spacing: -0.01em;
+  font-size: 40px;
+  letter-spacing: -0.04em;
+  line-height: 1;
   overflow-wrap: anywhere;
 }
 
@@ -30,7 +31,7 @@
 }
 
 .settings-list {
-  border-top: 1px solid var(--rule);
+  display: grid;
 }
 
 .setting {
@@ -49,6 +50,7 @@
 
 .setting-input {
   width: 96px;
+  min-height: 40px;
   flex: none;
   text-align: right;
 }
@@ -85,8 +87,7 @@ select.setting-input {
 .import-result {
   margin-top: 12px;
   padding: 12px 14px;
-  border-radius: var(--radius-control);
-  border: 1px solid var(--rule);
+  border-radius: var(--radius);
   background: var(--silk);
 }
 

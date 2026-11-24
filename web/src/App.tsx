@@ -4,6 +4,7 @@ import { api } from './api/client'
 import { deviceId, deviceName } from './api/ids'
 import type { Me } from './api/types'
 import { AppProvider } from './app/context'
+import { Splash } from './components/Splash'
 import { ErrorState, Loading, Toasts } from './components/ui'
 import { DeckScreen } from './screens/Deck'
 import { DecksScreen } from './screens/Decks'
@@ -27,7 +28,7 @@ function returnAfterSignIn(): boolean {
   return true
 }
 
-export default function App() {
+export default function App({ splash = false }: { splash?: boolean }) {
   const [me, setMe] = useState<Me>()
   const [error, setError] = useState<Error>()
   const [attempt, setAttempt] = useState(0)
@@ -49,16 +50,22 @@ export default function App() {
     }
   }, [attempt])
 
+  return (
+    <>
+      {splash && <Splash />}
+      <Body me={me} error={error} retry={() => {
+        setError(undefined)
+        setAttempt((a) => a + 1)
+      }} />
+    </>
+  )
+}
+
+function Body({ me, error, retry }: { me?: Me; error?: Error; retry: () => void }) {
   if (error) {
     return (
       <main className="screen">
-        <ErrorState
-          error={error}
-          retry={() => {
-            setError(undefined)
-            setAttempt((a) => a + 1)
-          }}
-        />
+        <ErrorState error={error} retry={retry} />
       </main>
     )
   }

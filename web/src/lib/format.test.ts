@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cardMeaning, formatInterval, hskLabel, plural, simplifiedExamples, spreadSiblings, weekdayGlyph } from './format'
+import { cardMeaning, chineseDate, formatInterval, hskLabel, plural, sessionMinutes, simplifiedExamples, spreadSiblings, weekdayGlyph } from './format'
 
 describe('formatInterval', () => {
   const from = new Date('2026-11-24T09:00:00Z')
@@ -58,5 +58,25 @@ describe('spreadSiblings', () => {
     const c = (id: string, note: string) => ({ id, note_id: note })
     const out = spreadSiblings([c('a1', 'a'), c('a2', 'a'), c('b1', 'b'), c('b2', 'b'), c('c1', 'c')])
     expect(out.map((x) => x.id)).toEqual(['a1', 'b1', 'c1', 'a2', 'b2'])
+  })
+})
+
+describe('chineseDate', () => {
+  it.each([
+    ['2026-11-25', '十一月二十五日 · 星期三'],
+    ['2026-01-01', '一月一日 · 星期四'],
+    ['2026-10-10', '十月十日 · 星期六'],
+    ['2026-03-29', '三月二十九日 · 星期日'],
+    ['2026-12-31', '十二月三十一日 · 星期四'],
+  ])('%s → %s', (iso, want) => {
+    expect(chineseDate(iso)).toBe(want)
+  })
+})
+
+describe('sessionMinutes', () => {
+  it('estimates whole minutes, at least one', () => {
+    expect(sessionMinutes(0, 0)).toBe(1)
+    expect(sessionMinutes(18, 6)).toBe(5)
+    expect(sessionMinutes(100, 0)).toBe(14)
   })
 })
