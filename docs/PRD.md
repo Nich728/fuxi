@@ -4,8 +4,8 @@
 |---|---|
 | **Product** | Fuxi (复习, *fùxí*, "to review") |
 | **Owner** | Nicholas Setiono |
-| **Status** | v1.7, all open questions decided |
-| **Last updated** | 14 November 2026 |
+| **Status** | v1.8, all open questions decided |
+| **Last updated** | 25 November 2026 |
 | **Companion doc** | [`SYSTEM_DESIGN.md`](./SYSTEM_DESIGN.md) |
 
 ---
@@ -15,7 +15,7 @@
 Fuxi is a Mandarin study app built around two things:
 
 1. **An AI tutor in a prompt bar.** You ask about any word, phrase or grammar point and get a clear explanation with example sentences at your level. Any word it mentions can become a flashcard in one tap.
-2. **A spaced-repetition review system.** It schedules each flashcard just before you'd forget it, using the FSRS algorithm, so 15–20 minutes a day keeps thousands of words in memory.
+2. **A spaced-repetition review system.** It schedules each flashcard just before you'd forget it, using the FSRS algorithm, so 15–20 minutes a day keeps thousands of words in memory. Reviews don't only ask "do you remember this?": as a word matures, Fuxi checks you by having you type it, pick its tones, fill it into a sentence, put a sentence in order, and finally use it in a sentence of your own.
 
 A short **vocabulary check** when you first sign up estimates your level, so Fuxi never wastes your time on words you already know and pitches its suggestions just above where you are. It works offline for reviews and syncs across phone and laptop.
 
@@ -60,11 +60,12 @@ Fuxi is also a backend portfolio project. Its value as a portfolio piece comes f
 | Term | Meaning |
 |---|---|
 | **Note** | One thing you're learning: a word, a phrase or a sentence. |
-| **Card** | One way of testing a note (meaning, writing, tones, fill-in-the-blank). One note produces several cards. |
+| **Card** | One way of testing a note (meaning, writing, tones, fill-in-the-blank, sentence order, translation, using it in a sentence). One note produces several cards. |
+| **Exercise** | A card that checks your answer instead of asking you to judge yourself: typing the word, picking tones, filling a blank, ordering a sentence (checked by the app), or translating and writing your own sentence (checked by the AI). |
 | **Deck** | A named collection of notes, such as "Class — Week 6" or "HSK 3". |
 | **Inbox** | A holding area for words suggested by the AI or found in pasted text. Nothing reaches your reviews until you accept it. |
 | **Due** | A card the scheduler says you should review today. |
-| **Review rating** | Your self-assessment after each card: Again, Hard, Good, Easy. |
+| **Review rating** | Your self-assessment after each card: Again, Hard, Good, Easy. After an exercise the app suggests the rating from your answer, and you confirm or change it. |
 | **FSRS** | The scheduling algorithm that picks each card's next review date. |
 | **Vocabulary check** | A quick quiz at sign-up, about a minute long: a few screens of 5 words where you tap the ones you recognise. It estimates how many words you know at each HSK level. |
 | **Known word** | A word the app believes you already know, from the check, an "I already know this" tap, or long-term review success. Known words aren't suggested and don't become cards unless you ask. |
@@ -120,6 +121,9 @@ Priority: **P0** = MVP must-have, **P1** = v1, **P2** = later.
 | A7 | I can scroll back through past conversations. | P1 |
 | A8 | I can turn on **auto-capture**, so every word I ask about goes to the Inbox without a tap. | P2 |
 | A9 | When the AI writes a word with pinyin that disagrees with the dictionary, the app flags it. | P2 |
+| A10 | A "use it" card asks me to write my own sentence with a word I know well. The tutor says whether it's correct and natural, shows a corrected version and explains the difference. | P1 |
+| A11 | A translation card gives me an English sentence at my level to write in Chinese, and the tutor accepts any correct translation, not only one fixed answer. | P1 |
+| A12 | AI-checked exercises are capped per day (5 by default). Offline or over the cap, they wait for another day and my other reviews carry on. | P1 |
 
 ### Look up and organise
 | ID | Story | Priority |
@@ -141,8 +145,12 @@ Priority: **P0** = MVP must-have, **P1** = v1, **P2** = later.
 | R3 | The next review date is chosen automatically by FSRS. | P0 |
 | R4 | I can set a daily limit on new cards per deck. | P0 |
 | R5 | My study day rolls over at 4am, not midnight, so late-night reviews count for that evening. | P0 |
-| R6 | I can choose which card types a deck uses (recognition, recall, tones, cloze). | P1 |
+| R6 | I can choose which card types a deck uses (recognition, recall, tones, cloze, sentence order, translation, use in a sentence). | P1 |
 | R7 | I can suspend a card I don't want to see for now. | P1 |
+| R8 | On a recall card, I can type the answer (hanzi, or pinyin with tone marks or numbers) and the app tells me whether it's right. | P1 |
+| R9 | I can rebuild a real sentence from its shuffled words, to practise word order and grammar patterns. | P1 |
+| R10 | After an exercise, the app suggests a rating from my answer (Again if wrong), and I confirm it or pick another. | P1 |
+| R11 | Harder exercises unlock as I learn a word: tones, cloze and sentence order once I recognise it, translation and my own sentence once I've known it for a few weeks. My daily sessions don't get much longer. | P1 |
 
 ### Offline and sync
 | ID | Story | Priority |
@@ -216,6 +224,7 @@ Skipping is allowed at step 2 or 3. You then pick a level by hand, and the app r
 2. Think, tap to reveal *cídiǎn · dictionary*, then rate **Good**.
 3. Repeat until done. A summary shows cards reviewed, accuracy and time spent.
 4. Stuck on a card? **Ask about this** opens the tutor with the word preloaded.
+5. Some cards are exercises. For 学习 once it's familiar: a sentence from Tatoeba with a gap (我在___中文), you type 学习, the app marks it right and suggests **Good**, you tap to confirm. Weeks later a "use it" card asks for your own sentence with 学习; the tutor corrects 我学习中文在家 to 我在家学习中文, explains the word order, and suggests **Hard**.
 
 ## 8. Functional requirements
 
@@ -262,6 +271,15 @@ Skipping is allowed at step 2 or 3. You then pick a level by hand, and the app r
 - **FR-S-2** When two devices edit the same note, each field resolves to the latest edit. A delete wins over a concurrent edit.
 - **FR-S-3** Conversations with the tutor are online-only and are not part of offline sync.
 
+### 8.7 Exercises
+- **FR-X-1** Exercises checked by the app (typed recall, tones, cloze, sentence order) compare the answer with dictionary data or the source sentence. Pinyin answers accept tone marks or tone numbers, ignore spaces and case, and treat ü and v alike.
+- **FR-X-2** Cloze and sentence-order exercises use Tatoeba sentences in simplified characters that contain the word, preferring the user's known words and level (as FR-AI-3). A different sentence is chosen on each review where possible, so the word is tested, not one sentence.
+- **FR-X-3** The result of a check only *suggests* a rating. The user confirms it or picks another, and that choice is what the scheduler uses. Neither the app nor the AI ever rates a card by itself.
+- **FR-X-4** AI-checked exercises (translation, use in a sentence) return a verdict, a corrected version and a short explanation. The corrected sentence is labelled AI-generated (FR-AI-5) and never becomes card data (ADR-0009).
+- **FR-X-5** Typed answers are a way of answering the recall card (a deck setting, on by default), not a separate card, so a word's recall history stays in one place. Harder card types are introduced only once the note's recognition card is established: tones, cloze and sentence order after its interval reaches 7 days; translation and use in a sentence after 21 days. Thresholds are deck settings.
+- **FR-X-6** Every review stores the answer given and the check's result with it, so ratings can later be compared with checked results (for example, to see how often a suggestion was overridden).
+- **FR-X-7** AI-checked exercises count against the AI budget (FR-AI-6) and a per-user daily cap. When offline, over the cap or over budget, those cards are left due for another day; nothing else in the session is affected.
+
 ## 9. Non-functional requirements
 
 | Area | Requirement |
@@ -294,7 +312,8 @@ Measured on the owner's own usage, since that's the real test.
 | Release | Milestones | Contents |
 |---|---|---|
 | **MVP** | M0–M3 | Accounts, dictionary and search, decks, notes and cards, FSRS reviews, CSV import, "I already know this", minimal installable web client, deployed. Online-only. |
-| **v1.0** | M4 | Vocabulary check and learner level; AI tutor: prompt bar, streaming answers, word chips, paste-and-extract, Inbox, "Ask about this". |
+| **v0.9** | M3.5 | Exercises checked by the app: typed recall, tones, cloze, sentence order; suggested ratings; card types per deck; exercises unlock as a word matures. |
+| **v1.0** | M4 | Vocabulary check and learner level; AI tutor: prompt bar, streaming answers, word chips, paste-and-extract, Inbox, "Ask about this"; AI-checked translation and "use it" exercises. |
 | **v1.1** | M5 | Offline-first sync across devices. |
 | **v1.2** | M6–M7 | Stats, forecast, personalised FSRS, observability, load tests, write-up. |
 | **Later** | — | Auto-capture, pinyin checker, text-to-speech audio, stroke order, Discord reminder, simplified / traditional toggle. |
@@ -311,6 +330,9 @@ Measured on the owner's own usage, since that's the real test.
 | Low-quality Tatoeba sentences | Trust flag, level filter, hide button |
 | Learners over-claim in the vocabulary check | Meaning follow-ups, made-up words, the Verify-later option, and automatic correction from later reviews |
 | The check only measures recognition | Stated in the result; tones and writing are learned through review cards |
+| Reviews only test recognition, so words feel known but can't be used | Exercises that check typed answers, tones, cloze, word order and the learner's own sentences (§8.7) |
+| The AI misjudges a sentence (accepts a wrong one or rejects a right one) | It only suggests a rating and the learner confirms; corrections are labelled AI-generated; grading cases in the eval set (SYSTEM_DESIGN §8.10) |
+| Exercises make daily sessions too long | They unlock only as words mature, AI exercises are capped per day, and exercise cards count toward the deck's daily limits |
 | A bug lets one user see or change another user's data (real once friends use the app) | Every query is scoped to the logged-in user; an automated test for every endpoint tries to access another user's data and must fail; invite-only sign-up limits who has accounts |
 | Cautious learners skip words they half-know, so their level is underestimated | Instruction to tap anything they recognise; underestimating is the safe direction (they see some too-easy words rather than missing words they need), and "I already know this" taps and reviews raise the level quickly |
 
@@ -325,3 +347,4 @@ These started as open questions; all are now decided.
 5. **Should the AI tutor be in the MVP?** **No.** It ships in v1.0 (M4), after the dictionary, decks and cards exist.
 6. **Tapping a word chip: straight to a deck, or to the Inbox?** **Straight to a deck.** The tap is a deliberate choice, so it shouldn't need confirming again. The Inbox is only for words the user didn't pick one by one (paste-to-extract, auto-capture).
 7. **HSK 2.0 or HSK 3.0?** **HSK 3.0**, the latest curriculum, using the 2026 revision of the word lists. Levels 1–6 are separate bands and levels 7–9 share one, so the app works with 7 bands. If a clearly licensed 2026 list can't be found, fall back to the 2021 HSK 3.0 list (SYSTEM_DESIGN §16).
+8. **Should a checked answer set the rating by itself?** **No.** The check suggests a rating and the learner confirms it, because a typo or an accepted synonym shouldn't reset a card, and an AI verdict can be wrong (ADR-0019).

@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| **Status** | v1.8, for review |
-| **Last updated** | 22 November 2026 |
+| **Status** | v1.9, for review |
+| **Last updated** | 25 November 2026 |
 | **Companion doc** | [`PRD.md`](./PRD.md) |
 
 This document describes *how* Fuxi is built. The PRD describes *what* it does and *why*. Section numbers here are referenced from code comments and ADRs, so keep them stable when editing.
@@ -200,7 +200,7 @@ CREATE TABLE decks (
     id           uuid PRIMARY KEY,
     user_id      uuid NOT NULL REFERENCES users(id),
     name         text NOT NULL,
-    settings     jsonb NOT NULL,      -- new_per_day, card_types[], desired_retention
+    settings     jsonb NOT NULL,      -- new_per_day, card_types[], desired_retention, type_answers, unlock_days (§6.7)
     field_hlc    jsonb NOT NULL,      -- {"name": "<hlc>", "settings": "<hlc>"}
     deleted_hlc  text
 );
@@ -222,7 +222,7 @@ CREATE TABLE cards (
     id           uuid PRIMARY KEY,
     user_id      uuid NOT NULL REFERENCES users(id),
     note_id      uuid NOT NULL REFERENCES notes(id),
-    card_type    text NOT NULL,       -- 'recognition' | 'recall' | 'tones' | 'cloze'
+    card_type    text NOT NULL,       -- 'recognition' | 'recall' | 'tones' | 'cloze' | 'order' | 'translate' | 'use' (§6.7)
     suspended    boolean NOT NULL DEFAULT false,
     field_hlc    jsonb NOT NULL,
     deleted_hlc  text,
@@ -238,6 +238,7 @@ CREATE TABLE review_logs (
     reviewed_at  timestamptz NOT NULL,            -- device time of the review
     duration_ms  integer,
     device_id    uuid NOT NULL,
+    exercise     jsonb,                           -- the answer and its check, for exercises (§6.7); null for self-rated cards
     received_at  timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX review_logs_card_idx ON review_logs (card_id, reviewed_at, id);
@@ -486,7 +487,7 @@ WHERE cs.user_id = $1
 ORDER BY cs.due_at
 LIMIT $3;
 ```
-Cards in state new are excluded above. New cards are added up to each deck's `new_per_day` minus new cards already introduced today, counted from `card_states.first_review_at` since the start of the study day; they come oldest note first, recognition before recall.
+Cards in state new are excluded above. New cards are added up to each deck's `new_per_day` minus new cards already introduced today, counted from `card_states.first_review_at` since the start of the study day; they come oldest note first, recognition before recall. The exercise types tones, cloze, order, translate and use are *gated*: a new card of those types is eligible only once the note's recognition card is in state review with an interval of at least the deck's `unlock_days` for that type (§6.7), and the AI-checked types also need the daily AI exercise allowance (§8.13). Gated cards count toward `new_per_day` like any other new card.
 
 Each queued card carries `preview`: its due time for each of the four ratings if rated now, computed with the same weights and deck retention as a real review, so the rating buttons can show their intervals without a second FSRS implementation in the client (until M5 brings `ts-fsrs` for offline review).
 
@@ -498,6 +499,27 @@ Runs nightly for users with at least about 1,000 reviews and at least 200 new on
 
 ### 6.6 Home summary
 `GET /study/summary` returns, for the current study day, the due and remaining new counts per deck (the same rules as §6.3), and reviews per study day for the last 7 days, oldest first. Each review is assigned the local date of `reviewed_at` moved back by `day_starts_at` hours, so a review at 1 am counts for the evening before. A day with at least one review earns its seal on the home screen.
+
+### 6.7 Exercises
+Self-rated cards ask "do you remember this?". Exercises check an answer instead (PRD §8.7). Every type is a card of its note with its own FSRS state, so each skill is scheduled on its own: a word can be easy to recognise and still hard to use.
+
+| Card type | Prompt | Answer | Checked by | Introduced when |
+|---|---|---|---|---|
+| `recognition` | Hanzi | Self-rated | — | From the start |
+| `recall` | Meaning | Self-rated, or typed when the deck's `type_answers` is on (default) | App: hanzi, or pinyin with marks or numbers | From the start |
+| `tones` | Hanzi | A tone for each syllable | App: the entry's pinyin (any reading of a 多音字) | Recognition interval ≥ 7 days |
+| `cloze` | A sentence with the word blanked | Typed, or one of four choices | App: the word | ≥ 7 days |
+| `order` | The sentence's words, shuffled | Tapped in order | App: the original sentence | ≥ 7 days |
+| `translate` | An English sentence at the learner's level | Written in Chinese | AI (§8.13) | ≥ 21 days |
+| `use` | The word | The learner's own sentence | AI (§8.13) | ≥ 21 days |
+
+The day thresholds are `unlock_days` in deck settings. Which types a deck creates is `card_types` (PRD R6); recognition and recall are on by default and the exercise types are opt-in per deck until M3.5 has had real use.
+
+**Content.** The queue (§6.3) attaches an `exercise` object to exercise cards: the kind, the Tatoeba sentence id and text, the shuffled tokens (from the §5 segmenter) or the four choices, and the expected answer. The client checks app-checked answers itself, so they will work offline in M5. Sentences come from `internal/dictionary` through a small interface (`Sentences(entryID, maxHSK)`): simplified script only, containing the word, 4–14 segmented tokens for `order`, mostly within the learner's level. The pick is seeded by `(card_id, reps)`, so reloading the queue shows the same sentence and the next review shows a different one. Cloze distractors are other words from the user's decks in the same HSK band and with a similar length, never synonyms the dictionary lists for the word.
+
+**Checking.** Pinyin answers are normalised before comparing (tone numbers to marks, spaces and case ignored, `v` as `ü`). A wrong answer shows the expected one and suggests Again. A right one suggests Good, or Hard when it took more than twice the median time for that card type. The learner confirms the suggestion or picks another rating, and only that rating reaches FSRS (ADR-0019): the scheduler never sees the verdict.
+
+**Storing.** `POST /reviews` carries an optional `exercise` object, stored in `review_logs.exercise`: `{kind, sentence_id?, answer, correct, suggested_rating, checker: "app" | "ai" | "self", grade_id?}`. The log stays append-only; the field is informational and never read by `Replay`. It lets M6 report how often suggestions were overridden, per card type.
 
 ## 7. Offline-first sync
 
@@ -573,6 +595,7 @@ Server, in one transaction:
 | Capability | Endpoint | Model use |
 |---|---|---|
 | Chat about words and grammar | `POST /v1/tutor/conversations/{id}/messages` (SSE) | Tool-calling agent loop |
+| Check a translation or the learner's own sentence | `POST /v1/exercises/grade` (§8.13) | Single call with structured JSON output |
 | Extract words from pasted text | `POST /v1/tutor/extract` | Single call with structured JSON output |
 | "Ask about this" from a review | Same as chat, conversation created with `context.card_id` | Preloaded context |
 
@@ -675,6 +698,8 @@ Server post-processing:
 - tool-use rate (did it look words up?),
 - latency and cost.
 
+A second set of about 40 grading cases (§8.13) pairs exercises with answers and the expected verdict: correct sentences in several valid word orders, common learner errors (word order, missing 了 or 的, wrong measure word, the word used with the wrong meaning) and off-task answers. `task eval` reports agreement with the expected verdicts, and how often a correct answer is marked wrong, which matters most because it would push a learner to Again.
+
 Run it before changing prompts or models; results are committed to `evals/results/`.
 
 ### 8.11 Privacy
@@ -688,6 +713,16 @@ v1 uses a hosted, token-billed API. Self-hosting an open-weight model stays poss
 - **Adjustments for local models:** longer timeouts (local generation is slower); grammar-constrained or JSON mode for extraction, because smaller models break structured output more often; avoid models under about 8B parameters for the tool-calling chat loop.
 - **Hosting choices:** the owner's own machine (free per token, but only available while it's on; needs a private tunnel such as Tailscale to reach it from a phone); a rented GPU server (fixed monthly cost, usually only worth it at real volume); or a pay-per-second GPU service (cheap when idle, but cold starts hurt chat latency). The app's own server has no GPU and can't run a useful model.
 - **Deciding:** run the eval set (§8.10) against the candidate local model and the hosted one, and compare pinyin error rate, tool-use rate, latency and cost per question from `messages.cost_micros`. Switch only if the local model meets the PRD targets. Record the result as an ADR.
+
+### 8.13 Grading answers
+`POST /v1/exercises/grade` checks a `translate` or `use` answer: `{card_id, answer, sentence_id?}` → `{grade_id, verdict, corrected, explanation, suggested_rating}`. It is one model call with structured output, not the agent loop: the prompt already carries what grading needs (the note's dictionary entry, the English sentence and its Tatoeba Chinese for `translate`, the learner's level), so no tools are offered.
+
+- **Verdicts:** `correct` (natural and uses the word as asked) → Good; `minor` (understandable with a small error) → Hard; `wrong` (ungrammatical, wrong meaning or the word not used) → Again. The AI never suggests Easy; the learner can still choose it.
+- **Output:** the corrected sentence (equal to the answer when correct) and a two- or three-sentence explanation in the user's explanation language. Both are shown labelled AI-generated (PRD FR-AI-5) and are never written to notes or cards (ADR-0009). Pinyin is not generated; if the explanation names a word, it is resolved against the dictionary like chips (§8.4).
+- **Storing:** each call is a row in `exercise_grades` (user_id, card_id, answer, response, model, prompt_version, cost_micros, created_at), owned by the tutor package; the review that follows references it by `grade_id`.
+- **Limits:** grading counts toward the daily AI budget (§8.9) and a separate allowance, `users.settings.ai_exercises_per_day` (default 5). The queue leaves out AI-checked cards once the allowance is used, and the client leaves them out while offline; they stay due for another day. Answers are unique, so grading isn't cached (§8.8).
+- **Failure:** on a timeout, a provider error or invalid output, the client shows "Couldn't check this one" and offers the four ratings as a self-rated card; the review then has `checker: "self"`.
+- **Evaluation:** the grading cases in §8.10.
 
 ## 9. Vocabulary check and learner level
 
@@ -826,7 +861,7 @@ Base path `/v1`. JSON; errors use RFC 9457 `application/problem+json`. Cursor pa
 | Decks | `GET /decks` · `POST /decks` · `GET /decks/{id}` · `PATCH /decks/{id}` · `DELETE /decks/{id}` |
 | Notes and cards | `GET /decks/{id}/notes?after=` · `POST /decks/{id}/notes` · `GET /notes?entry_id=` · `GET /notes/{id}` · `PATCH /notes/{id}` · `DELETE /notes/{id}` · `PATCH /cards/{id} {suspended}` |
 | Imports | `POST /decks/{id}/import?import_id=` (body: the CSV) → `202 {job_id}` · `GET /jobs/{id}` |
-| Study | `GET /study/queue?deck=` (cards carry rating previews, §6.3) · `GET /study/summary` (§6.6) · `POST /reviews` |
+| Study | `GET /study/queue?deck=` (cards carry rating previews, §6.3, and exercise content, §6.7) · `GET /study/summary` (§6.6) · `POST /reviews` (with `exercise` for exercises) · `POST /exercises/grade` (AI-checked exercises, §8.13) |
 | Inbox | `GET /inbox` · `POST /inbox/{id}/accept {deck_id}` · `POST /inbox/{id}/dismiss` · `POST /inbox/accept-all {deck_id}` |
 | Tutor | `POST /tutor/conversations` · `GET /tutor/conversations` · `GET /tutor/conversations/{id}` · `POST /tutor/conversations/{id}/messages` (SSE) · `POST /tutor/extract` |
 | Sync | `POST /sync/push` · `GET /sync/pull?since=` · `GET /sync/snapshot` |
@@ -925,12 +960,13 @@ Assumes about 8–10 hours per week.
 | M1 | Content & search | 2 | CC-CEDICT / Tatoeba / HSK importers, pinyin utils, search API | "ma" → 妈 / 马 / 吗; re-import is a no-op |
 | M2 | Study core | 2 | Sign-in (Cloudflare Access, ADR-0018), devices, decks, notes, cards, FSRS wrapper, reviews, due queue, study day, CSV import job | Full review session via API; replay test passes |
 | M3 | Daily-usable client | 2 | Installable PWA: login, search, add, review, decks; `word_knowledge` + "I already know this"; first deploy | Owner studies with it daily |
-| M4 | Vocabulary check + AI tutor | 4 | Pseudo-word bank, tap-grid check, scoring, `Knowledge()` function, learner profile, simulation tests; provider interface + adapter, tools, agent loop, SSE, chips, extraction, Inbox, cache, budgets, eval set | Simulation targets met (§9.9); ask → chip → card in under 5 s; eval pinyin errors < 2% |
+| M3.5 | Practice | 2 | Exercises checked by the app (§6.7): typed answers on recall cards, tones, cloze and sentence-order cards, sentence selection from Tatoeba, gated introduction, suggested ratings, `review_logs.exercise`, card types per deck | A word moves from recognition to cloze and order as it matures; every exercise review stores its answer |
+| M4 | Vocabulary check + AI tutor | 4.5 | Pseudo-word bank, tap-grid check, scoring, `Knowledge()` function, learner profile, simulation tests; provider interface + adapter, tools, agent loop, SSE, chips, extraction, Inbox, cache, budgets, eval set; AI-checked translate and use exercises (§8.13) | Simulation targets met (§9.9); ask → chip → card in under 5 s; eval pinyin errors < 2%; grading agreement ≥ 90% with no more than 5% of correct answers marked wrong |
 | M5 | Offline sync | 3 | HLC, outbox, push/pull/snapshot, conflict rules, compaction, property tests | Convergence test passes thousands of runs; offline demo |
 | M6 | Insight | 1.5 | Stats, forecast, FSRS tuning job | Retention chart; nightly tuning |
 | M7 | Production polish | 1.5 | Dashboards, k6 load tests, rate limits, README, ADRs, demo video | Published numbers and write-up |
 
-Total: about 17 weeks. Daily use begins after M3; the vocabulary check and tutor arrive together at M4, since the tutor is the main user of the learner level.
+Total: about 19.5 weeks. Daily use begins after M3; exercises checked by the app follow in M3.5; the vocabulary check and tutor arrive together at M4, since the tutor is the main user of the learner level.
 
 ## 15. Architecture decision records
 
@@ -954,6 +990,7 @@ Total: about 17 weeks. Daily use begins after M3; the vocabulary check and tutor
 | 0016 | HSK 3.0 (2026 word-list revision) for levels, with 7–9 as one band |
 | 0017 | Task instead of make for developer commands, so they work on Windows too |
 | 0018 | Cloudflare Access for sign-in instead of passwords, refresh tokens and invite codes |
+| 0019 | Checked answers suggest a rating and the learner confirms it; exercises unlock as a word matures |
 
 Template: `docs/adr/0000-template.md` with the sections Context, Decision, Alternatives considered, Consequences.
 
