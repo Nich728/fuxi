@@ -16,7 +16,8 @@ Fuxi is also a backend portfolio project: a deterministic scheduling engine, an 
 | M1 Content & search | ✅ | CC-CEDICT, Tatoeba, HSK 3.0 importers; search API |
 | M2 Study core | ✅ | Sign-in via Cloudflare Access, decks, notes, cards, FSRS reviews, due queue, CSV import |
 | M3 Daily-usable client | | Installable PWA |
-| M4 Vocabulary check + AI tutor | | |
+| M3.5 Practice | | Exercises checked by the app: typed answers, tones, cloze, sentence order ([ADR-0019](docs/adr/0019-suggested-ratings-for-exercises.md)) |
+| M4 Vocabulary check + AI tutor | | Includes AI-checked translation and "use it" exercises |
 | M5 Offline sync | | |
 | M6 Insight · M7 Production polish | | |
 
