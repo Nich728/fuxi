@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cardMeaning, chineseDate, formatInterval, hskLabel, plural, sessionMinutes, simplifiedExamples, spreadSiblings, weekdayGlyph } from './format'
+import { cardMeaning, chineseDate, reviewExample, formatInterval, hskLabel, plural, sessionMinutes, simplifiedExamples, spreadSiblings, weekdayGlyph } from './format'
 
 describe('formatInterval', () => {
   const from = new Date('2026-11-24T09:00:00Z')
@@ -78,5 +78,21 @@ describe('sessionMinutes', () => {
     expect(sessionMinutes(0, 0)).toBe(1)
     expect(sessionMinutes(18, 6)).toBe(5)
     expect(sessionMinutes(100, 0)).toBe(14)
+  })
+})
+
+describe('reviewExample', () => {
+  it('prefers a sentence with an English translation', () => {
+    const ex = [
+      { zh: '你去学校。', en: null },
+      { zh: '學校在哪兒？', en: 'Where is the school?' },
+      { zh: '学校在哪儿？', en: 'Where is the school?' },
+    ]
+    expect(reviewExample(ex, '学校')).toEqual(ex[2])
+  })
+
+  it('falls back to an untranslated one, and to nothing', () => {
+    expect(reviewExample([{ zh: '你去学校。', en: null }], '学校')?.zh).toBe('你去学校。')
+    expect(reviewExample([], '学校')).toBeUndefined()
   })
 })
