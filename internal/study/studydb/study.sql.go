@@ -14,6 +14,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countDeckNotes = `-- name: CountDeckNotes :one
+SELECT count(*) FROM notes
+WHERE deck_id = $1 AND user_id = $2 AND deleted_hlc IS NULL
+`
+
+type CountDeckNotesParams struct {
+	DeckID uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) CountDeckNotes(ctx context.Context, arg CountDeckNotesParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countDeckNotes, arg.DeckID, arg.UserID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countDue = `-- name: CountDue :one
 
 SELECT count(*) FROM card_states

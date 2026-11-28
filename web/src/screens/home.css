@@ -1,0 +1,64 @@
+.home-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 48px;
+  margin-right: -10px;
+}
+
+.home-head .label {
+  font-family: var(--font-hanzi);
+  letter-spacing: 0.08em;
+}
+
+/* Today: the count is the one loud thing (system.md). */
+.today {
+  padding: 32px 0 8px;
+}
+
+.today-count {
+  margin-top: 6px;
+  font-size: 104px;
+}
+
+.today-count.is-zero {
+  color: var(--ink-soft);
+}
+
+.today-line {
+  margin-top: 12px;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+.today-start {
+  margin-top: 28px;
+}
+
+.today-later {
+  margin-top: 8px;
+}
+
+/* Until the tutor (M4): an underlined field that opens Search. */
+.lookup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  margin-top: 20px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-soft);
+  text-decoration: none;
+  transition: border-color 160ms var(--ease-out);
+}
+
+.lookup:active {
+  border-bottom-color: var(--jade);
+}
+
+.empty-actions {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  margin-top: 12px;
+}

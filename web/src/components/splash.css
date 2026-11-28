@@ -1,0 +1,47 @@
+/* The launch splash (system.md motion). */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--paper);
+  transition: opacity 500ms var(--ease-out);
+}
+
+.splash.is-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.splash-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.splash-name {
+  position: absolute;
+  inset: calc(50% + var(--g) * 0.4) 0 auto 0;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  opacity: 0;
+}
+
+/* Fades in once the character has settled (the dots start when the font is ready). */
+.splash-name.is-on {
+  opacity: 1;
+  animation: fade-up 500ms var(--ease-out) 2050ms both;
+}
+
+.splash-latin {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.splash-zh {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--ink-soft);
+}

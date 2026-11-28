@@ -346,5 +346,5 @@ These started as open questions; all are now decided.
 4. **Tone display:** tone marks always, with optional tone colours in Settings (C2).
 5. **Should the AI tutor be in the MVP?** **No.** It ships in v1.0 (M4), after the dictionary, decks and cards exist.
 6. **Tapping a word chip: straight to a deck, or to the Inbox?** **Straight to a deck.** The tap is a deliberate choice, so it shouldn't need confirming again. The Inbox is only for words the user didn't pick one by one (paste-to-extract, auto-capture).
-7. **HSK 2.0 or HSK 3.0?** **HSK 3.0**, the latest curriculum, using the 2026 revision of the word lists. Levels 1–6 are separate bands and levels 7–9 share one, so the app works with 7 bands. If a clearly licensed 2026 list can't be found, fall back to the 2021 HSK 3.0 list (SYSTEM_DESIGN §16).
+7. **HSK 2.0 or HSK 3.0?** **HSK 3.0**, the latest curriculum, using the examination syllabus word list published in November 2025 (in force for exams from 2026), from an MIT-licensed extraction (SYSTEM_DESIGN §5). Levels 1–6 are separate bands and levels 7–9 share one, so the app works with 7 bands.
 8. **Should a checked answer set the rating by itself?** **No.** The check suggests a rating and the learner confirms it, because a typo or an accepted synonym shouldn't reset a card, and an AI verdict can be wrong (ADR-0019).

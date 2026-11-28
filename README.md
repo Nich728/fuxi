@@ -15,7 +15,7 @@ Fuxi is also a backend portfolio project: a deterministic scheduling engine, an 
 | M0 Foundations | ✅ | Binary modes, Compose, migrations, CI |
 | M1 Content & search | ✅ | CC-CEDICT, Tatoeba, HSK 3.0 importers; search API |
 | M2 Study core | ✅ | Sign-in via Cloudflare Access, decks, notes, cards, FSRS reviews, due queue, CSV import |
-| M3 Daily-usable client | | Installable PWA |
+| M3 Daily-usable client | 🚧 | Installable PWA: review, search, decks, "I already know this"; deployed behind Cloudflare Access ([guide](docs/DEPLOY.md)) |
 | M3.5 Practice | | Exercises checked by the app: typed answers, tones, cloze, sentence order ([ADR-0019](docs/adr/0019-suggested-ratings-for-exercises.md)) |
 | M4 Vocabulary check + AI tutor | | Includes AI-checked translation and "use it" exercises |
 | M5 Offline sync | | |
@@ -33,13 +33,13 @@ fuxi migrate    goose migrations, embedded in the binary
 
 ## Getting started
 
-Requirements: [Go 1.27+](https://go.dev/dl/), [Docker Desktop](https://www.docker.com/products/docker-desktop/), [Task](https://taskfile.dev) (`winget install Task.Task` or `brew install go-task`).
+Requirements: [Go 1.27+](https://go.dev/dl/), [Node.js 24+](https://nodejs.org), [Docker Desktop](https://www.docker.com/products/docker-desktop/), [Task](https://taskfile.dev) (`winget install Task.Task` or `brew install go-task`).
 
 ```bash
 task up        # build and start Postgres, migrations, API and worker
 ```
 
-The API listens on http://localhost:8080 (`/healthz`, `/readyz`).
+The app is at http://localhost:8080, served by the API from the same origin; the API is under `/v1` (`/healthz`, `/readyz` for probes). Locally everyone is signed in as `dev@fuxi.localhost` (dev mode, ADR-0018).
 
 Load the dictionary (about 30 MB of downloads; set `FUXI_DATA_DIR` to choose where they go):
 
@@ -75,21 +75,29 @@ curl -X POST "localhost:8080/v1/decks/0193a000-0000-7000-8000-00000000d001/impor
 curl localhost:8080/v1/jobs/1
 ```
 
-### Sign-in in production
+### Deploying
 
 Fuxi doesn't store passwords. [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/) (free for up to 50 users) sits in front of the app's domain and signs people in with Google or an emailed code; the API verifies the token Access attaches to every request ([ADR-0018](docs/adr/0018-cloudflare-access-for-sign-in.md)).
 
-1. Put the domain on Cloudflare. In Zero Trust, add Google and/or One-time PIN as login methods.
-2. Create a self-hosted Access application for the domain, with a policy that allows the emails you invite.
-3. Run the API with `FUXI_AUTH=cloudflare`, `FUXI_ACCESS_TEAM_DOMAIN=https://<team>.cloudflareaccess.com`, `FUXI_ACCESS_AUD=<the application's AUD tag>`, and optionally `FUXI_OWNER_EMAIL`.
-4. Expose the origin only through Cloudflare, for example with a Cloudflare Tunnel.
+Production is one Docker Compose stack behind a Cloudflare Tunnel, on a PC or an Oracle Cloud Arm VM ([ADR-0020](docs/adr/0020-oracle-vm-behind-cloudflare-tunnel.md)). [docs/DEPLOY.md](docs/DEPLOY.md) walks through it: the domain, the Access application and the tunnel in Cloudflare, then `task prod:init`, `task prod:up` and `task prod:import`.
 
 To invite a friend, add their email to the policy. To sign a device out remotely, revoke the user's sessions in Zero Trust.
+
+### Working on the web client
+
+The installable web app lives in `web/` (Vite, TypeScript, plain CSS on the design tokens in [`.interface-design/system.md`](.interface-design/system.md)).
+
+```bash
+task up         # the API and database in Docker
+task web:dev    # the app with hot reload on http://localhost:5173, calling the API on :8080
+task web:check  # lint, tests, production build and the 150 KB first-load size budget
+```
 
 ### Tests and other commands
 
 ```bash
 task test      # all tests, including integration tests against real Postgres
+task web:check # the web client's checks
 task lint      # go vet + golangci-lint
 task down      # stop the stack
 task --list    # every command

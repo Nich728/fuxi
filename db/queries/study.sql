@@ -17,6 +17,10 @@ SELECT user_id FROM decks WHERE id = $1;
 -- name: GetDeck :one
 SELECT * FROM decks WHERE id = $1 AND user_id = $2 AND deleted_hlc IS NULL;
 
+-- name: CountDeckNotes :one
+SELECT count(*) FROM notes
+WHERE deck_id = $1 AND user_id = $2 AND deleted_hlc IS NULL;
+
 -- name: ListDecks :many
 SELECT d.*,
        (SELECT count(*) FROM notes n

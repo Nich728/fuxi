@@ -4,6 +4,8 @@ version: "3"
 
 vars:
   COMPOSE: docker compose -f deploy/docker-compose.yml
+  # The production stack (deploy/production, ADR-0020); settings in deploy/production/.env.
+  PROD: docker compose -f deploy/production/compose.yml
   VERSION:
     sh: git describe --tags --always --dirty 2>/dev/null || echo dev
   # Where downloaded datasets live. Set FUXI_DATA_DIR to keep them off a small drive.
@@ -111,6 +113,93 @@ tasks:
       # packages start Postgres at once ("rootless Docker is not supported"); naming
       # the Docker Desktop pipe skips the detection.
       - '{{if eq OS "windows"}}DOCKER_HOST={{.DOCKER_HOST | default "npipe:////./pipe/docker_engine"}} {{end}}go test {{if ne OS "windows"}}-race {{end}}-count=1 ./...'
+
+  web:install:
+    desc: Install the web client's packages
+    dir: web
+    cmds: [npm ci]
+    # Only when the lock file changed since the last install.
+    sources: [package-lock.json]
+    generates: [node_modules/.package-lock.json]
+
+  web:dev:
+    desc: "Run the web client with hot reload on :5173 (start the API with `task run:api` first)"
+    dir: web
+    deps: [web:install]
+    cmds: [npm run dev]
+
+  web:check:
+    desc: Lint, test, build and size-check the web client
+    dir: web
+    deps: [web:install]
+    cmds: [npm run check]
+
+  prod:init:
+    desc: Create deploy/production/.env from the example, with a random database password
+    status: [test -f deploy/production/.env]
+    cmds:
+      # Runs in a throwaway container, so it works the same on Windows and Linux.
+      - >-
+        docker run --rm -v "{{.ROOT_DIR}}/deploy/production:/w" alpine:3.22 sh -c
+        'pw=$(head -c 24 /dev/urandom | od -An -tx1 | tr -dc 0-9a-f);
+        sed "s/^POSTGRES_PASSWORD=$/POSTGRES_PASSWORD=$pw/" /w/.env.example > /w/.env && chmod 600 /w/.env'
+      - echo "Created deploy/production/.env. Fill in the Access values and the tunnel token."
+
+  prod:up:
+    desc: "Build and start the production stack; pass services to start only some, e.g. task prod:up -- api worker"
+    # The image (and the version shown in Settings) is labelled with git describe.
+    env:
+      FUXI_VERSION: "{{.VERSION}}"
+    preconditions:
+      - sh: test -f deploy/production/.env
+        msg: "No deploy/production/.env yet: run task prod:init and fill it in."
+    cmds:
+      - "{{.PROD}} up -d --build --wait {{.CLI_ARGS}}"
+      - "{{.PROD}} ps"
+
+  prod:down:
+    desc: Stop the production stack (keeps the database and backups)
+    cmds: ["{{.PROD}} down"]
+
+  prod:ps:
+    desc: Show the production containers
+    cmds: ["{{.PROD}} ps"]
+
+  prod:logs:
+    desc: "Follow production logs, e.g. task prod:logs -- api cloudflared"
+    cmds: ["{{.PROD}} logs -f --tail 100 {{.CLI_ARGS}}"]
+
+  prod:health:
+    desc: Call /healthz and /readyz on the production API from this machine
+    cmds:
+      - curl -fsS http://localhost:{{.FUXI_LOCAL_PORT | default "8090"}}/healthz
+      - curl -fsS http://localhost:{{.FUXI_LOCAL_PORT | default "8090"}}/readyz
+
+  prod:import:
+    desc: Import the downloaded datasets into the production database (repeats are no-ops)
+    cmds:
+      - "{{.PROD}} run --rm tools import cedict /data/cedict_ts.u8.gz"
+      - "{{.PROD}} run --rm tools import hsk /data/syllabus2025_words.tsv"
+      - "{{.PROD}} run --rm tools import tatoeba /data/cmn_sentences.tsv.bz2 /data/eng_sentences.tsv.bz2 /data/cmn-eng_links.tsv.bz2"
+
+  prod:fuxi:
+    desc: "Run a fuxi command against the production database, e.g. task prod:fuxi -- migrate status"
+    cmds: ["{{.PROD}} run --rm tools {{.CLI_ARGS}}"]
+
+  prod:backup:
+    desc: Take a database backup now (the backup service also takes one every day)
+    cmds: ["{{.PROD}} exec backup sh /backup.sh once"]
+
+  prod:restore:
+    desc: "Restore a backup over the production database, e.g. task prod:restore -- fuxi-20261128-030000.dump"
+    prompt: This replaces the production database with the backup. Continue?
+    requires:
+      vars: [CLI_ARGS]
+    cmds:
+      - "{{.PROD}} stop api worker"
+      - "{{.PROD}} up -d --wait backup"
+      - "{{.PROD}} exec backup pg_restore --clean --if-exists --no-owner --single-transaction -d fuxi /backups/{{.CLI_ARGS}}"
+      - "{{.PROD}} up -d --wait api worker"
 
   test:short:
     desc: Run unit tests only (no Docker)

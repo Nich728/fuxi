@@ -1,0 +1,393 @@
+/* Fuxi design tokens: .interface-design/system.md ("ink and signal"). Change them there first. */
+
+/* Ink, the default theme. */
+:root {
+  --paper: #151615;
+  --silk: #1d1f1c;
+  --stack: #262824;
+  --rule: #2c2e2b;
+  --ink: #ece8df;
+  --ink-mid: #b9b5ab;
+  --ink-soft: #8c8a83;
+  --jade: #3fd98a;
+  --on-jade: #0b2a1a;
+  --gold: #c9a24a;
+  --cinnabar: #e4583e;
+
+  /* Tone colours (Settings, off by default); tone marks always stay visible. */
+  --tone-1: #f08a70;
+  --tone-2: #d9b45c;
+  --tone-3: #5fd99a;
+  --tone-4: #8db4f0;
+
+  --font-ui: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-hanzi: 'Noto Serif SC', 'Songti SC', serif;
+  --font-serif: 'Noto Serif', Georgia, serif;
+
+  --radius: 6px;
+  --radius-sheet: 14px;
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --gutter: 20px;
+
+  color-scheme: dark;
+}
+
+/* Paper, the light theme: chosen in Settings, or by the device with "Match device". */
+:root[data-theme='paper'] {
+  --paper: #eeeae1;
+  --silk: #f7f4ee;
+  --stack: #dedad0;
+  --rule: #d6d1c4;
+  --ink: #161715;
+  --ink-mid: #4a4842;
+  --ink-soft: #6b6860;
+  --jade: #187a4a;
+  --on-jade: #f7f4ee;
+  --gold: #80631f;
+  --cinnabar: #b23a26;
+  --tone-1: #b23a26;
+  --tone-2: #8a6a1f;
+  --tone-3: #187a4a;
+  --tone-4: #3d5a8a;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+  :root[data-theme='auto'] {
+    --paper: #eeeae1;
+    --silk: #f7f4ee;
+    --stack: #dedad0;
+    --rule: #d6d1c4;
+    --ink: #161715;
+    --ink-mid: #4a4842;
+    --ink-soft: #6b6860;
+    --jade: #187a4a;
+    --on-jade: #f7f4ee;
+    --gold: #80631f;
+    --cinnabar: #b23a26;
+    --tone-1: #b23a26;
+    --tone-2: #8a6a1f;
+    --tone-3: #187a4a;
+    --tone-4: #3d5a8a;
+    color-scheme: light;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  background: var(--paper);
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 700;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+  text-wrap: pretty;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+}
+
+/* The focus ring is never removed. */
+:focus-visible {
+  outline: 2px solid var(--jade);
+  outline-offset: 2px;
+}
+
+.hanzi {
+  font-family: var(--font-hanzi);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.pinyin {
+  font-family: var(--font-serif);
+  font-style: italic;
+  color: var(--ink-mid);
+}
+
+/* The voice: meanings, summaries, translations. */
+.serif {
+  font-family: var(--font-serif);
+  color: var(--ink-mid);
+}
+
+/* Big display type: one loud thing per screen. */
+.display {
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.95;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.meta {
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+/* Small uppercase labels; the source text stays in sentence case. */
+.label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Buttons: one filled jade button per screen. */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--silk);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    transform 120ms var(--ease-out),
+    background-color 160ms var(--ease-out);
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.btn-primary {
+  min-height: 52px;
+  padding: 0 16px;
+  background: var(--jade);
+  color: var(--on-jade);
+  font-weight: 700;
+}
+
+/* A primary button that goes somewhere carries an arrow at its end. */
+.btn-primary:has(> svg:last-child) {
+  justify-content: space-between;
+}
+
+.btn-quiet {
+  background: transparent;
+  color: var(--ink-soft);
+}
+
+.btn-block {
+  width: 100%;
+}
+
+/* Underlined fields, not boxes. */
+.input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid var(--rule);
+  border-radius: 0;
+  background: transparent;
+  font-size: 16px; /* 16px stops iOS zooming into the field */
+  transition: border-color 160ms var(--ease-out);
+}
+
+.input:focus {
+  outline: none;
+  border-bottom-color: var(--jade);
+}
+
+.input:focus-visible {
+  outline: none;
+}
+
+select.input {
+  background: var(--paper);
+}
+
+.input::placeholder {
+  color: var(--ink-soft);
+}
+
+/* Entrance: a line rises from behind a mask (home, session end). */
+.mask {
+  display: block;
+  overflow: hidden;
+  padding-bottom: 0.06em;
+}
+
+.mask > * {
+  display: block;
+}
+
+.rise {
+  display: block;
+  animation: rise 600ms var(--ease-out) both;
+  animation-delay: var(--d, 0ms);
+}
+
+.fade-up {
+  animation: fade-up 420ms var(--ease-out) both;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(105%);
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* While the launch splash plays, entrances wait under it. */
+.splashing .rise,
+.splashing .fade-up,
+.splashing .pop {
+  animation-play-state: paused;
+}
+
+/* A number rolling to its next value (counters, word counts). */
+.roll {
+  display: inline-block;
+  overflow: hidden;
+  height: 1.2em;
+  line-height: 1.2em;
+  vertical-align: -0.3em;
+}
+
+.roll > span {
+  display: block;
+}
+
+.roll.is-rolling > span {
+  animation: roll 320ms var(--ease-out) both;
+}
+
+@keyframes roll {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-1.2em);
+  }
+}
+
+/* Word pages slide in over the page they came from (View Transitions). */
+::view-transition-old(root) {
+  animation: vt-out 280ms var(--ease-out) both;
+}
+
+::view-transition-new(root) {
+  animation: vt-in 280ms var(--ease-out) both;
+}
+
+.vt-back::view-transition-old(root) {
+  animation-name: vt-out-back;
+  z-index: 2;
+}
+
+.vt-back::view-transition-new(root) {
+  animation-name: vt-in-back;
+}
+
+@keyframes vt-out {
+  to {
+    transform: translateX(-20%);
+    opacity: 0.4;
+  }
+}
+
+@keyframes vt-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes vt-out-back {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes vt-in-back {
+  from {
+    transform: translateX(-20%);
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+  }
+}

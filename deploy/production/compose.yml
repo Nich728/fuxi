@@ -1,0 +1,125 @@
+# Production stack (SYSTEM_DESIGN §13, ADR-0020): Postgres, a one-shot
+# migration, the API (which serves the PWA), the worker, nightly backups, and
+# cloudflared, which connects out to Cloudflare so the app is reachable only
+# through Cloudflare Access at its public hostname. Nothing listens on a public
+# port.
+#
+# Settings come from deploy/production/.env (never committed; copy
+# .env.example, or run `task prod:init`). Start with `task prod:up`.
+# The same file runs on an x86 PC and on an Arm VM: every image is multi-arch
+# and fuxi is built on the machine itself.
+
+name: fuxi-prod
+
+x-app: &app
+  build:
+    context: ../..
+    dockerfile: deploy/Dockerfile
+    args:
+      VERSION: ${FUXI_VERSION:-prod}
+  image: fuxi:prod
+  restart: unless-stopped
+  environment:
+    # The password is hex (task prod:init), so it needs no URL escaping.
+    FUXI_DATABASE_URL: postgres://fuxi:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/fuxi?sslmode=disable
+    FUXI_LOG_LEVEL: ${FUXI_LOG_LEVEL:-info}
+    # Cloudflare Access sign-in (ADR-0018). The API refuses to start without both.
+    FUXI_AUTH: cloudflare
+    FUXI_ACCESS_TEAM_DOMAIN: ${FUXI_ACCESS_TEAM_DOMAIN:?set FUXI_ACCESS_TEAM_DOMAIN in .env}
+    FUXI_ACCESS_AUD: ${FUXI_ACCESS_AUD:?set FUXI_ACCESS_AUD in .env}
+    FUXI_OWNER_EMAIL: ${FUXI_OWNER_EMAIL:-}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fuxi
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: fuxi
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fuxi -d fuxi"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  migrate:
+    <<: *app
+    command: ["migrate", "up"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    command: ["api"]
+    # Loopback only, for checks on the machine itself (curl localhost:8090/healthz).
+    # Everyone else reaches the API through the tunnel.
+    ports:
+      - "127.0.0.1:${FUXI_LOCAL_PORT:-8090}:8080"
+    healthcheck:
+      test: ["CMD", "/fuxi", "healthcheck"]
+      interval: 5s
+      timeout: 4s
+      retries: 15
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    <<: *app
+    command: ["worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # The tunnel's end: an outbound connection to Cloudflare. Its public
+  # hostname (fuxi.<your domain> → http://api:8080) is set in the Zero Trust
+  # dashboard; the token only lets this container run that tunnel.
+  cloudflared:
+    image: cloudflare/cloudflared:2026.11.2
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # A compressed pg_dump at start-up and then every day, keeping
+  # BACKUP_KEEP_DAYS days (SYSTEM_DESIGN §13). Copy them off the machine too:
+  # a backup on the same disk doesn't survive losing the disk.
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: postgres
+      PGUSER: fuxi
+      PGDATABASE: fuxi
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./backup.sh:/backup.sh:ro
+      - ${FUXI_BACKUP_DIR:-./backups}:/backups
+    entrypoint: ["sh", "/backup.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # One-off commands (task prod:import, task prod:fuxi): the fuxi binary with
+  # the downloaded datasets mounted read-only. Never started by `up`.
+  tools:
+    <<: *app
+    restart: "no"
+    profiles: [tools]
+    volumes:
+      - ${FUXI_DATA_DIR:-../../.data}:/data:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
