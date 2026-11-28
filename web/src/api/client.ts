@@ -13,6 +13,7 @@ import type {
   SearchResult,
   Summary,
 } from './types'
+import { splashDone } from '../lib/motion'
 
 /** An RFC 9457 problem returned by the API. */
 export class ApiError extends Error {
@@ -38,7 +39,11 @@ let redirecting = false
 function needSignIn(): never {
   if (!redirecting) {
     redirecting = true
-    location.assign(signInUrl())
+    // The installed app opens from its cache and can start the launch
+    // animation before it learns the session has expired: let the launch
+    // finish, then go to sign in (at once if no launch is playing).
+    const to = signInUrl()
+    splashDone.then(() => location.assign(to))
   }
   throw new ApiError(401, 'Signing you in again…')
 }
