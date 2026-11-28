@@ -9,6 +9,7 @@ import { DotSeal } from '../components/DotSeal'
 import { Empty, ErrorState, Loading, Pinyin, Roll } from '../components/ui'
 import { cardMeaning, formatInterval, hskLabel, plural, simplifiedExamples, spreadSiblings } from '../lib/format'
 import { celebrateToday } from '../lib/motion'
+import { isReady } from '../lib/queue'
 import './review.css'
 
 const RATINGS: { rating: Rating; key: keyof QueueCard['preview']; label: string }[] = [
@@ -61,8 +62,8 @@ export function ReviewScreen() {
       setError(undefined)
       setDeckNames(new Map(decks.map((d) => [d.id, d.name])))
       const t = Date.now()
-      // Learning cards rated a moment ago are "due today" but not due yet.
-      const ready = [...q.due, ...q.new].filter((c) => all || c.state === 'new' || Date.parse(c.due_at) <= t + 60_000)
+      // Learning cards rated a moment ago are "due today" but not due yet (lib/queue).
+      const ready = [...q.due, ...q.new].filter((c) => all || isReady(c, t))
       setLater(
         q.due
           .filter((c) => !ready.includes(c) && Date.parse(c.due_at) - t < SAME_SESSION)

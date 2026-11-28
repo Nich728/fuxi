@@ -489,6 +489,8 @@ LIMIT $3;
 ```
 Cards in state new are excluded above. New cards are added up to each deck's `new_per_day` minus new cards already introduced today, counted from `card_states.first_review_at` since the start of the study day; they come oldest note first, recognition before recall. The exercise types tones, cloze, order, translate and use are *gated*: a new card of those types is eligible only once the note's recognition card is in state review with an interval of at least the deck's `unlock_days` for that type (§6.7), and the AI-checked types also need the daily AI exercise allowance (§8.13). Gated cards count toward `new_per_day` like any other new card.
 
+"Due today" includes cards whose time falls later in the study day. The client treats new and review cards as ready all day, since an FSRS interval of a day or more means "some time today", while learning and relearning cards wait until their step is up (within a minute). Home shows the cards ready now, and counts learning cards that come back later today separately (`web/src/lib/queue.ts`).
+
 Each queued card carries `preview`: its due time for each of the four ratings if rated now, computed with the same weights and deck retention as a real review, so the rating buttons can show their intervals without a second FSRS implementation in the client (until M5 brings `ts-fsrs` for offline review).
 
 ### 6.4 Study day

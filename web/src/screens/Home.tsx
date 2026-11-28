@@ -7,6 +7,7 @@ import { Empty, ErrorState, Loading, Screen, SlideLink, WeekDots } from '../comp
 import { useCountUp } from '../lib/useCountUp'
 import { chineseDate, plural, sessionMinutes } from '../lib/format'
 import { celebrated, celebrationPending, homeIntroPending, homeIntroPlayed } from '../lib/motion'
+import { laterToday } from '../lib/queue'
 import { useResource } from '../lib/useResource'
 import './home.css'
 
@@ -60,10 +61,16 @@ function HomeBody({ summary, decks, queue }: { summary: Summary; decks: Deck[]; 
     celebrated()
   }, [])
 
-  const total = summary.due_count + summary.new_count
+  // Cards still on a learning step later today aren't due *now*: count them
+  // apart, so the number matches what Start review shows (SYSTEM_DESIGN §6.3).
+  const [now] = useState(() => Date.now())
+  const later = laterToday(queue.due, now)
+  const laterTotal = [...later.values()].reduce((a, b) => a + b, 0)
+  const dueNow = Math.max(0, summary.due_count - laterTotal)
+  const total = dueNow + summary.new_count
   const count = useCountUp(total, intro)
-  const hasCards = queue.due.length + queue.new.length > 0
   const counts = new Map(summary.decks.map((d) => [d.deck_id, d]))
+  const laterLine = laterTotal > 0 && `${plural(laterTotal, 'card')} you're learning ${laterTotal === 1 ? 'comes' : 'come'} back later today.`
   // Entrance: a line rises from its mask after `ms`.
   const rise = (ms: number) => (intro ? { className: 'rise', style: { '--d': `${ms}ms` } as CSSProperties } : {})
   const fade = (ms: number) => (intro ? { style: { '--d': `${ms}ms` } as CSSProperties } : {})
@@ -103,16 +110,19 @@ function HomeBody({ summary, decks, queue }: { summary: Summary; decks: Deck[]; 
         <p className="serif today-line">
           <span className="mask">
             <span {...rise(180)}>
-              {total > 0 ? todayLine(summary.due_count, summary.new_count) : 'Nothing else is due today.'}
+              {total > 0 ? todayLine(dueNow, summary.new_count) : laterLine || 'Nothing else is due today.'}
             </span>
           </span>
         </p>
-        {hasCards ? (
+        {total > 0 && laterLine && (
+          <p className={`meta today-later ${intro ? 'fade-up' : ''}`} {...fade(220)}>
+            {laterLine}
+          </p>
+        )}
+        {total > 0 && (
           <Link href="/review" className={`btn btn-primary btn-block today-start ${intro ? 'fade-up' : ''}`} {...fade(260)}>
             Start review <ArrowIcon />
           </Link>
-        ) : (
-          total > 0 && <p className="meta today-later">Cards you're learning come back later today.</p>
         )}
       </section>
 
@@ -133,7 +143,7 @@ function HomeBody({ summary, decks, queue }: { summary: Summary; decks: Deck[]; 
       <ul className="deck-rows">
         {decks.map((d, i) => {
           const c = counts.get(d.id)
-          const due = c?.due ?? 0
+          const due = Math.max(0, (c?.due ?? 0) - (later.get(d.id) ?? 0))
           const fresh = c?.new ?? 0
           return (
             <li key={d.id} className="mask">
