@@ -15,7 +15,7 @@ Fuxi is also a backend portfolio project: a deterministic scheduling engine, an 
 | M0 Foundations | ✅ | Binary modes, Compose, migrations, CI |
 | M1 Content & search | ✅ | CC-CEDICT, Tatoeba, HSK 3.0 importers; search API |
 | M2 Study core | ✅ | Sign-in via Cloudflare Access, decks, notes, cards, FSRS reviews, due queue, CSV import |
-| M3 Daily-usable client | 🚧 | Installable PWA: review, search, decks, "I already know this"; first deploy next |
+| M3 Daily-usable client | 🚧 | Installable PWA: review, search, decks, "I already know this"; deployed behind Cloudflare Access ([guide](docs/DEPLOY.md)) |
 | M3.5 Practice | | Exercises checked by the app: typed answers, tones, cloze, sentence order ([ADR-0019](docs/adr/0019-suggested-ratings-for-exercises.md)) |
 | M4 Vocabulary check + AI tutor | | Includes AI-checked translation and "use it" exercises |
 | M5 Offline sync | | |
@@ -75,14 +75,11 @@ curl -X POST "localhost:8080/v1/decks/0193a000-0000-7000-8000-00000000d001/impor
 curl localhost:8080/v1/jobs/1
 ```
 
-### Sign-in in production
+### Deploying
 
 Fuxi doesn't store passwords. [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/) (free for up to 50 users) sits in front of the app's domain and signs people in with Google or an emailed code; the API verifies the token Access attaches to every request ([ADR-0018](docs/adr/0018-cloudflare-access-for-sign-in.md)).
 
-1. Put the domain on Cloudflare. In Zero Trust, add Google and/or One-time PIN as login methods.
-2. Create a self-hosted Access application for the domain, with a policy that allows the emails you invite.
-3. Run the API with `FUXI_AUTH=cloudflare`, `FUXI_ACCESS_TEAM_DOMAIN=https://<team>.cloudflareaccess.com`, `FUXI_ACCESS_AUD=<the application's AUD tag>`, and optionally `FUXI_OWNER_EMAIL`.
-4. Expose the origin only through Cloudflare, for example with a Cloudflare Tunnel.
+Production is one Docker Compose stack behind a Cloudflare Tunnel, on a PC or an Oracle Cloud Arm VM ([ADR-0020](docs/adr/0020-oracle-vm-behind-cloudflare-tunnel.md)). [docs/DEPLOY.md](docs/DEPLOY.md) walks through it: the domain, the Access application and the tunnel in Cloudflare, then `task prod:init`, `task prod:up` and `task prod:import`.
 
 To invite a friend, add their email to the policy. To sign a device out remotely, revoke the user's sessions in Zero Trust.
 
