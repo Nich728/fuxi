@@ -60,7 +60,7 @@ Rules:
 
 Motion follows how often you see it. Everything respects `prefers-reduced-motion`.
 
-- **Launch (cold start only, once per browser session):** dots flow in top to bottom, settle into a solid jade 复, "Fuxi · 复习" fades in, then the splash dissolves (about 3.3s). A tap skips it. Skipped entirely with reduced motion.
+- **Launch (a fresh start: the first visit, or opening Fuxi after 30 minutes or more out of sight):** each dot starts a short way out from its place in 复 and drifts straight back in, top to bottom; the dotted character holds for a beat and melts into a solid jade 复, "Fuxi · 复习" fades in, then the splash dissolves (about 3.3s). A tap skips it. Skipped entirely with reduced motion.
 - **Home (first view per launch):** lines rise from a mask with a short stagger (600ms, `cubic-bezier(.22,1,.36,1)`), the due count rolls up (700ms), week dots pop in one after another.
 - **Review (hundreds of times a day):** kept fast. The answer fades up in 200ms; a new card slides in from the right in 220ms. No exit animation, so keyboard rating never waits.
 - **Rating:** the pressed button dips, the progress line grows (300ms) and the counter rolls to the next number.
