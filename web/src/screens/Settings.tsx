@@ -157,6 +157,18 @@ export function SettingsScreen() {
         </div>
       </div>
 
+      <h2 className="label section-label">About</h2>
+      <div className="settings-list">
+        <div className="setting">
+          <span>
+            Version <span className="num">{__APP_VERSION__}</span>
+            <span className="meta setting-help num">
+              Built {new Date(__BUILT_AT__).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+            </span>
+          </span>
+        </div>
+      </div>
+
       <h2 className="label section-label">Credits</h2>
       <p className="meta credits">
         Dictionary: <a href="https://cc-cedict.org/wiki/">CC-CEDICT</a> (CC BY-SA 4.0). Example sentences:{' '}

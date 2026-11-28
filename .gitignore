@@ -10,6 +10,8 @@ coverage.*
 
 # Local environment
 .env
+# Production backups (task prod:backup)
+deploy/production/backups/
 .env.*
 !.env.example
 

@@ -1,8 +1,11 @@
 /**
- * Draws a character out of dots (system.md signature elements): fine dots
- * flow in from around it, top to bottom (roughly stroke order), then melt
- * into the solid glyph so it reads cleanly. Used by the launch splash (复)
- * and the end of a session (毕).
+ * Draws a character out of dots (system.md signature elements). Each dot
+ * starts a short way out from its own place in the glyph, as if the
+ * character had been gently exploded, and drifts straight back in, top to
+ * bottom (roughly stroke order). The shape reads from the first frames and
+ * tightens into the character; the finished dotted glyph holds for a beat,
+ * then melts into the solid one. Used by the launch splash (复) and the end
+ * of a session (毕).
  */
 export interface DotGlyphOptions {
   glyph: string
@@ -14,12 +17,13 @@ export interface DotGlyphOptions {
   colour: string
   /** Delay spread from the top of the glyph to the bottom, ms. */
   stagger?: number
-  /** Flight time of each dot, ms. */
+  /** Travel time of each dot, ms. */
   flight?: number
-  /** When the solid glyph starts to show, and how long it takes, ms. */
-  solidAt?: number
+  /** How long the finished dotted glyph holds before turning solid, ms. */
+  hold?: number
+  /** How long the dots take to melt into the solid glyph, ms. */
   solidFor?: number
-  /** How far dots start from the centre, as a multiple of the glyph size. */
+  /** How far dots start from their place, as a multiple of the glyph size. */
   spread?: number
 }
 
@@ -29,50 +33,69 @@ interface Dot {
   sx: number
   sy: number
   delay: number
-  curve: number
 }
 
-const font = (size: number) => `600 ${size}px "Noto Serif SC", "Songti SC", serif`
+const SERIF = '"Noto Serif SC"'
+const FALLBACK = '"Songti SC", "SimSun", serif'
 const clamp = (v: number) => Math.min(1, Math.max(0, v))
-const easeOut = (t: number) => 1 - (1 - t) ** 4
+const easeOut = (t: number) => 1 - (1 - t) ** 3
 const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2)
 
 /** Loads the glyph's font (Google Fonts serves CJK in slices), but never waits long. */
 export async function loadGlyphFont(glyph: string, size: number) {
   if (!document.fonts) return
-  await Promise.race([document.fonts.load(font(size), glyph).catch(() => {}), new Promise((r) => setTimeout(r, 900))])
+  await Promise.race([
+    document.fonts.load(`600 ${size}px ${SERIF}`, glyph).catch(() => {}),
+    new Promise((r) => setTimeout(r, 900)),
+  ])
 }
 
-function sample(o: DotGlyphOptions): Dot[] {
+/**
+ * The font for the whole animation, fixed at the start: Noto Serif SC if it
+ * has loaded, otherwise the system serif only. Naming Noto in the fallback
+ * too would let the solid glyph switch font mid-animation if Noto arrived
+ * late, so it no longer matched the dots.
+ */
+function pickFont(glyph: string, size: number): string {
+  const noto = `600 ${size}px ${SERIF}`
+  const ready = document.fonts?.check(noto, glyph) ?? false
+  return ready ? noto : `600 ${size}px ${FALLBACK}`
+}
+
+function sample(o: DotGlyphOptions, font: string): Dot[] {
   const pad = Math.ceil(o.size * 0.1)
   const box = o.size + pad * 2
   const c = document.createElement('canvas')
   c.width = c.height = box
-  const g = c.getContext('2d')
+  const g = c.getContext('2d', { willReadFrequently: true })
   if (!g) return []
-  g.font = font(o.size)
+  g.font = font
   g.textAlign = 'center'
   g.textBaseline = 'middle'
   g.fillText(o.glyph, box / 2, box / 2 + o.size * 0.04)
   const data = g.getImageData(0, 0, box, box).data
-  const step = Math.max(3, o.size / 40)
+  const step = Math.max(3, o.size / 42)
   const dots: Dot[] = []
-  for (let y = 0; y < box; y += step)
-    for (let x = 0; x < box; x += step) {
-      if (data[(Math.round(y) * box + Math.round(x)) * 4 + 3] > 140) {
-        dots.push({ tx: o.cx - box / 2 + x, ty: o.cy - box / 2 + y, sx: 0, sy: 0, delay: 0, curve: 0 })
+  for (let y = step / 2; y < box; y += step)
+    for (let x = step / 2; x < box; x += step) {
+      if (data[(Math.round(y) * box + Math.round(x)) * 4 + 3] > 120) {
+        dots.push({ tx: o.cx - box / 2 + x, ty: o.cy - box / 2 + y, sx: 0, sy: 0, delay: 0 })
       }
     }
+  if (dots.length === 0) return dots
   const top = Math.min(...dots.map((d) => d.ty))
   const bottom = Math.max(...dots.map((d) => d.ty))
-  const spread = (o.spread ?? 1.6) * o.size
+  const spread = (o.spread ?? 0.42) * o.size
   for (const d of dots) {
-    const a = Math.random() * Math.PI * 2
-    const r = o.size * 0.7 + Math.random() * spread
-    d.sx = o.cx + Math.cos(a) * r
-    d.sy = o.cy + Math.sin(a) * r * 1.3
-    d.delay = ((d.ty - top) / Math.max(1, bottom - top)) * (o.stagger ?? 650) + Math.random() * 180
-    d.curve = (Math.random() - 0.5) * o.size * 0.5
+    // Out along the line from the glyph's centre through the dot, plus a little scatter.
+    const dx = d.tx - o.cx
+    const dy = d.ty - o.cy
+    const len = Math.hypot(dx, dy) || 1
+    const push = spread * (0.5 + Math.random() * 0.5)
+    const jitter = o.size * 0.08
+    d.sx = d.tx + (dx / len) * push + (Math.random() - 0.5) * jitter
+    d.sy = d.ty + (dy / len) * push + (Math.random() - 0.5) * jitter
+    d.delay = ((d.ty - top) / Math.max(1, bottom - top)) * (o.stagger ?? 450) + Math.random() * 120
   }
   return dots
 }
@@ -88,12 +111,17 @@ export function playDotGlyph(canvas: HTMLCanvasElement, o: DotGlyphOptions): () 
   canvas.height = Math.round(h * dpr)
   ctx.scale(dpr, dpr)
 
-  const dots = sample(o)
-  const flight = o.flight ?? 1100
-  const solidAt = o.solidAt ?? 1700
-  const solidFor = o.solidFor ?? 600
+  const font = pickFont(o.glyph, o.size)
+  const dots = sample(o, font)
+  const flight = o.flight ?? 1000
+  // The solid glyph waits until every dot has landed, then a short hold.
+  const landed = Math.max(0, ...dots.map((d) => d.delay)) + flight
+  const solidAt = landed + (o.hold ?? 250)
+  const solidFor = o.solidFor ?? 500
   const end = solidAt + solidFor
-  const r0 = Math.max(0.9, o.size / 150)
+  // Dots end almost touching, so the dotted glyph reads as solid strokes.
+  const step = Math.max(3, o.size / 42)
+  const rEnd = step * 0.42
   let raf = 0
   const t0 = performance.now()
 
@@ -105,16 +133,14 @@ export function playDotGlyph(canvas: HTMLCanvasElement, o: DotGlyphOptions): () 
     for (const d of dots) {
       const q = easeOut(clamp((el - d.delay) / flight))
       if (q <= 0) continue
-      const x = d.sx + (d.tx - d.sx) * q + d.curve * Math.sin(q * Math.PI) * (1 - q)
-      const y = d.sy + (d.ty - d.sy) * q
-      ctx.globalAlpha = (0.25 + 0.75 * q) * (1 - solid * 0.9)
+      ctx.globalAlpha = Math.min(1, q * 1.6) * (1 - solid)
       ctx.beginPath()
-      ctx.arc(x, y, (r0 + r0 * 1.1 * q) * (1 - solid * 0.6), 0, Math.PI * 2)
+      ctx.arc(d.sx + (d.tx - d.sx) * q, d.sy + (d.ty - d.sy) * q, rEnd * (0.55 + 0.45 * q), 0, Math.PI * 2)
       ctx.fill()
     }
     if (solid > 0) {
       ctx.globalAlpha = solid
-      ctx.font = font(o.size)
+      ctx.font = font
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       ctx.fillText(o.glyph, o.cx, o.cy + o.size * 0.04)

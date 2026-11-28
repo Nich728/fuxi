@@ -29,11 +29,10 @@ export function DotSeal({ glyph }: { glyph: string }) {
         cx: GUTTER + SIZE / 2,
         cy: c.clientHeight / 2,
         colour: getComputedStyle(c).color,
-        stagger: 450,
-        flight: 850,
-        solidAt: 1050,
-        solidFor: 450,
-        spread: 1.1,
+        stagger: 350,
+        flight: 800,
+        hold: 200,
+        solidFor: 400,
       })
     })
     return () => {

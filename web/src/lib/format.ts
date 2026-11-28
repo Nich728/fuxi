@@ -51,6 +51,16 @@ export function simplifiedExamples<T extends { zh: string }>(examples: T[], simp
   return examples.filter((e) => e.zh.includes(simplified))
 }
 
+/**
+ * The example shown on a review card: the first simplified-script sentence
+ * that has an English translation, so the learner can check the meaning;
+ * an untranslated one only if none has a translation.
+ */
+export function reviewExample<T extends { zh: string; en?: string | null }>(examples: T[], simplified: string): T | undefined {
+  const usable = simplifiedExamples(examples, simplified)
+  return usable.find((e) => e.en) ?? usable[0]
+}
+
 /** "HSK 3", or "HSK 7–9" for the combined band. */
 export function hskLabel(level: number | null | undefined): string | null {
   if (level == null) return null

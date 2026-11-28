@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { api, ApiError, signInUrl } from './client'
 
+// The launch animation, under the test's control.
+const launch = vi.hoisted(() => {
+  let finish = () => {}
+  const splashDone = new Promise<void>((r) => (finish = r))
+  return { splashDone, finish: () => finish() }
+})
+vi.mock('../lib/motion', () => ({ splashDone: launch.splashDone }))
+
 afterEach(() => vi.unstubAllGlobals())
 
 describe('api client', () => {
@@ -29,6 +37,11 @@ describe('api client', () => {
     const redirect = { type: 'opaqueredirect', status: 0, ok: false } as Response
     vi.stubGlobal('fetch', vi.fn(async () => redirect))
     await expect(api.decks()).rejects.toThrow()
+    // Not while the launch animation is still playing…
+    expect(assign).not.toHaveBeenCalled()
+    launch.finish()
+    await launch.splashDone
+    // …then straight to sign in, returning to the same page.
     expect(assign).toHaveBeenCalledWith('/sign-in?next=%2Fdecks%2Fd1%3Fx%3D1')
   })
 

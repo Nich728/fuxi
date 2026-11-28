@@ -11,7 +11,7 @@ Fuxi (复习, "to review") is a Mandarin study app: FSRS flashcard reviews, an A
 
 ## Current milestone
 
-M0 Foundations, M1 Content & search and M2 Study core are done. Sign-in is Cloudflare Access (ADR-0018): `internal/identity` verifies the Access JWT and creates users on first sight; locally `FUXI_AUTH=dev` signs requests in as `FUXI_DEV_EMAIL` or the `X-Fuxi-Dev-Email` header. `internal/study` has decks, notes, cards, reviews, the due queue and CSV import; `internal/scheduling` wraps go-fsrs; `internal/jobs` is the Postgres queue. **M3 Daily-usable client** (SYSTEM_DESIGN §14) is in progress, in three PRs: backend additions (`internal/learner` for "I already know this", rating previews, `/study/summary`, the API serving the PWA from `FUXI_WEB_DIR`), the web client in `web/`, then the first deploy.
+M0 Foundations, M1 Content & search and M2 Study core are done. Sign-in is Cloudflare Access (ADR-0018): `internal/identity` verifies the Access JWT and creates users on first sight; locally `FUXI_AUTH=dev` signs requests in as `FUXI_DEV_EMAIL` or the `X-Fuxi-Dev-Email` header. `internal/study` has decks, notes, cards, reviews, the due queue and CSV import; `internal/scheduling` wraps go-fsrs; `internal/jobs` is the Postgres queue. **M3 Daily-usable client** (SYSTEM_DESIGN §14) is in progress, in three PRs: backend additions (`internal/learner` for "I already know this", rating previews, `/study/summary`, the API serving the PWA from `FUXI_WEB_DIR`), the web client in `web/` (both merged or in review), then the first deploy: `deploy/production/compose.yml` with `cloudflared`, on the owner's PC first and then an Oracle Cloud Arm VM (ADR-0020).
 
 ## Commands
 
@@ -29,6 +29,7 @@ The owner develops on **Windows**. Use Task, not make (ADR-0017).
 | `task sqlc` | Regenerate `internal/*/…db` packages from `db/queries/*.sql` (runs sqlc in Docker; it can't build natively here) |
 | `task web:dev` | The web client with hot reload on :5173 (proxies `/v1` to the API on :8080) |
 | `task web:check` | Web lint (oxlint), tests (Vitest), production build and the 150 KB gzipped first-load budget |
+| `task prod:init` / `task prod:up` / `task prod:import` | Production stack in `deploy/production` (ADR-0020, `docs/DEPLOY.md`); settings in the never-committed `deploy/production/.env`. Also `prod:logs`, `prod:health`, `prod:backup`, `prod:restore`, `prod:down` |
 | `task data:download` / `task data:import` | Fetch the datasets into `FUXI_DATA_DIR` (set to `D:/fuxi-data` on the owner's PC) and import them |
 
 The local Postgres from Compose is on host port **5433**; the owner has a separate PostgreSQL 17 service on 5432.

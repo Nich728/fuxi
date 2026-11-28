@@ -5,7 +5,7 @@ import './index.css'
 import App from './App.tsx'
 import { finishSplash, shouldPlaySplash } from './lib/motion'
 
-// The launch splash plays on a cold start only (system.md motion).
+// The launch splash plays on a fresh start only (system.md motion).
 const splash = shouldPlaySplash()
 if (!splash) finishSplash()
 

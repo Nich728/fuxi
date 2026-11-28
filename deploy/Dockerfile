@@ -7,7 +7,9 @@ WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY web/ ./
-RUN npm run build && npm run size
+# The version shown in the app's Settings (vite.config.ts).
+ARG VERSION=dev
+RUN FUXI_VERSION=${VERSION} npm run build && npm run size
 
 FROM golang:1.27-alpine AS build
 WORKDIR /src

@@ -6,6 +6,12 @@ import { VitePWA } from 'vite-plugin-pwa'
 // The app is served by the Go API from the same origin (SYSTEM_DESIGN §10),
 // so in development Vite forwards /v1 to `task run:api` (dev sign-in).
 export default defineConfig({
+  // Shown in Settings, so you can tell which build a phone is running
+  // (the installed app updates itself in the background).
+  define: {
+    __APP_VERSION__: JSON.stringify(process.env.FUXI_VERSION || 'dev'),
+    __BUILT_AT__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     VitePWA({

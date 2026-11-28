@@ -7,7 +7,7 @@ import { useApp } from '../app/state'
 import { ArrowIcon, CloseIcon } from '../components/Icons'
 import { DotSeal } from '../components/DotSeal'
 import { Empty, ErrorState, Loading, Pinyin, Roll } from '../components/ui'
-import { cardMeaning, formatInterval, hskLabel, plural, simplifiedExamples, spreadSiblings } from '../lib/format'
+import { cardMeaning, formatInterval, hskLabel, plural, reviewExample, spreadSiblings } from '../lib/format'
 import { celebrateToday } from '../lib/motion'
 import { isReady } from '../lib/queue'
 import './review.css'
@@ -263,7 +263,7 @@ function CardView({ card, deckName, revealed }: { card: QueueCard; deckName?: st
 
   const f = card.fields
   const recall = card.type === 'recall'
-  const example = entry && simplifiedExamples(entry.examples, entry.simplified)[0]
+  const example = entry && reviewExample(entry.examples, entry.simplified)
   const hsk = hskLabel(entry?.hsk_level)
 
   return (
